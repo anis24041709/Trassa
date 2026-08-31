@@ -1,0 +1,29 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: trassa
+      POSTGRES_USER: trassa
+      POSTGRES_PASSWORD: trassa
+    volumes:
+      - trassa_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trassa -d trassa"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  web:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://trassa:trassa@db:5432/trassa
+      JWT_SECRET: change-this-local-secret
+      COOKIE_SECURE: "false"
+      APP_URL: http://localhost:3000
+      MAX_UPLOAD_MB: 25
+    depends_on:
+      db:
+        condition: service_healthy
+volumes:
+  trassa_pg:
