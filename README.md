@@ -60,3 +60,18 @@ Für einen öffentlichen Betrieb:
 5. Für echte Produktion Dokumente in S3/R2/Azure Blob statt lokaler Web-Disk speichern.
 6. DSGVO-Prozesse (Löschung, Export, Aufbewahrung, AV-Verträge) ergänzen.
 7. Vor Livegang Security-/Penetrationstest und Datenschutzprüfung durchführen.
+
+## Admin-Bereich
+
+Die Admin-Oberfläche ist unter `/admin` erreichbar. Alle Admin-API-Routen sind serverseitig mit `is_admin` geschützt.
+
+Für den ersten Administrator in Produktion zwei Environment-Variablen setzen und den Service neu deployen:
+
+```env
+ADMIN_EMAIL=admin@deine-domain.de
+ADMIN_PASSWORD=ein-sehr-sicheres-passwort-mit-mindestens-10-zeichen
+```
+
+Beim Start legt der Server diesen Administrator an oder aktualisiert das vorhandene Konto mit derselben E-Mail. Danach kann der Admin unter `/admin` anmelden.
+
+Der Admin-Bereich enthält Dashboard-Kennzahlen, Unternehmen/Verifizierung, Benutzer-Sperren und Admin-Rechte, Anfragen, Angebote, Transporte, Rechnungen und Audit-Log.

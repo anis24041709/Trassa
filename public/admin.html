@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>TRASSA Admin</title>
+  <style>
+    :root{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#f7f7fb;background:#0f1117}
+    *{box-sizing:border-box} body{margin:0;background:#0f1117;color:#f7f7fb}.hidden{display:none!important}
+    .login-wrap{min-height:100vh;display:grid;place-items:center;padding:24px}.card{background:#171a22;border:1px solid #2a2e39;border-radius:16px;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+    .login-card{width:min(440px,100%)} h1,h2,h3{margin:0 0 12px}.muted{color:#aab0bf}.stack{display:grid;gap:12px}
+    label{font-size:13px;color:#c5cad5} input,select,textarea{width:100%;border:1px solid #343947;background:#10131a;color:#fff;border-radius:10px;padding:11px 12px}
+    button{border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer}.btn{background:#ff2f61;color:white}.btn.secondary{background:#2a2f3b}.btn.danger{background:#7c2534}.btn.small{padding:7px 10px;font-size:12px}
+    .error{color:#ff8aa3;font-size:13px}.success{color:#75d79d;font-size:13px}
+    .layout{display:grid;grid-template-columns:240px 1fr;min-height:100vh}.sidebar{background:#11141b;border-right:1px solid #282d39;padding:20px;position:sticky;top:0;height:100vh}.brand{font-size:22px;font-weight:900;margin-bottom:24px}.brand span{color:#ff2f61}
+    nav{display:grid;gap:8px}.navbtn{width:100%;text-align:left;background:transparent;color:#c8ceda;border:1px solid transparent}.navbtn.active,.navbtn:hover{background:#1d222d;border-color:#303747;color:white}
+    .main{padding:24px;min-width:0}.topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:20px}.grid{display:grid;gap:16px}.stats{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}.stat{background:#171b23;border:1px solid #2b313e;border-radius:14px;padding:18px}.stat b{display:block;font-size:28px;margin-top:6px}
+    .panel{background:#171b23;border:1px solid #2b313e;border-radius:14px;padding:18px;overflow:auto}.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}.toolbar input{max-width:300px}.table{width:100%;border-collapse:collapse;min-width:840px}.table th,.table td{text-align:left;border-bottom:1px solid #2b313e;padding:10px;font-size:13px;vertical-align:top}.table th{color:#aeb5c2;font-weight:700}.badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#2a303c;font-size:12px}.badge.ok{background:#153a29;color:#89e1aa}.badge.warn{background:#493b16;color:#f5d77d}.badge.bad{background:#49212b;color:#ff9bab}.actions{display:flex;gap:6px;flex-wrap:wrap}.section-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}.modal{position:fixed;inset:0;background:rgba(0,0,0,.65);display:grid;place-items:center;padding:20px;z-index:20}.modal .card{width:min(560px,100%)}
+    @media(max-width:900px){.layout{grid-template-columns:1fr}.sidebar{position:relative;height:auto;border-right:0;border-bottom:1px solid #282d39}.sidebar nav{grid-template-columns:repeat(2,minmax(0,1fr))}.main{padding:16px}}
+  </style>
+</head>
+<body>
+  <div id="loginView" class="login-wrap">
+    <div class="card login-card">
+      <h1>TRASSA <span style="color:#ff2f61">Admin</span></h1>
+      <p class="muted">Melde dich mit einem Administrator-Konto an.</p>
+      <form id="loginForm" class="stack">
+        <div><label>E-Mail</label><input id="email" type="email" required autocomplete="username"></div>
+        <div><label>Passwort</label><input id="password" type="password" required minlength="10" autocomplete="current-password"></div>
+        <button class="btn" type="submit">Anmelden</button>
+        <div id="loginMsg" class="error"></div>
+      </form>
+      <p class="muted" style="font-size:12px;margin-top:16px">Falls noch kein Admin existiert, setze in Render die Variablen <b>ADMIN_EMAIL</b> und <b>ADMIN_PASSWORD</b> und deploye neu.</p>
+    </div>
+  </div>
+
+  <div id="adminView" class="layout hidden">
+    <aside class="sidebar">
+      <div class="brand">TRASSA <span>Admin</span></div>
+      <nav id="nav">
+        <button class="navbtn active" data-section="dashboard">Dashboard</button>
+        <button class="navbtn" data-section="companies">Unternehmen</button>
+        <button class="navbtn" data-section="users">Benutzer</button>
+        <button class="navbtn" data-section="requests">Anfragen</button>
+        <button class="navbtn" data-section="offers">Angebote</button>
+        <button class="navbtn" data-section="transports">Transporte</button>
+        <button class="navbtn" data-section="invoices">Rechnungen</button>
+        <button class="navbtn" data-section="audit">Audit-Log</button>
+      </nav>
+      <button id="logoutBtn" class="btn secondary" style="width:100%;margin-top:20px">Abmelden</button>
+    </aside>
+    <main class="main">
+      <div class="topbar"><div><h2 id="pageTitle">Dashboard</h2><div id="adminIdentity" class="muted"></div></div><button id="refreshBtn" class="btn secondary">Aktualisieren</button></div>
+      <div id="content"></div>
+    </main>
+  </div>
+
+  <div id="modal" class="modal hidden"><div class="card"><div id="modalBody"></div></div></div>
+  <script src="/admin.js"></script>
+</body>
+</html>
