@@ -87,3 +87,8 @@ Der Admin-Bereich enthält Dashboard-Kennzahlen, Unternehmen/Verifizierung, Benu
 
 ## V4.1 Complete Light Theme
 Das helle Design ist jetzt direkt in `public/index.html` und `trassa-portal-connected.html` eingebettet. Dadurch ist es sowohl auf Render als auch beim lokalen Öffnen sichtbar. Startseite, Login/Registrierung, Portal und Admin sind hell gestaltet.
+
+## V4.4 – Anfrage-Detail Fix
+- Eigene Anfragen zeigen beim Anklicken jetzt die echten Werte aus PostgreSQL.
+- Die alte Demo-Detailansicht überschreibt die API-Daten nicht mehr.
+- Lichtraumprofil und Wagenart werden als lesbare Bezeichnungen angezeigt.

@@ -2222,6 +2222,14 @@ function openRequestDetail(index){
 }
 
 function renderRequestDetail(){
+  // V4.5: When the API adapter has selected a real PostgreSQL request,
+  // never paint the legacy demo row over it.
+  if(window.__trassaCurrentRequest && typeof window.renderRealRequestDetail === 'function'){
+    window.renderRealRequestDetail(window.__trassaCurrentRequest);
+    return;
+  }
+
+  // Fallback only for the standalone/demo mode without the backend adapter.
   const t = translations[lang];
   const r = t.myRequests[currentRequestIndex];
   if(!r) return;

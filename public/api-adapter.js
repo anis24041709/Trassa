@@ -59,9 +59,69 @@ async function trassaLoadDashboard(){
 function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
 
 async function renderMyRequests(){
-  try{const out=await api('/requests?mine=true');trassaRequests=out.requests||[];document.getElementById('myreq-list').innerHTML=trassaRequests.map((r,i)=>`<div class="list-row clickable" onclick="openRequestDetail(${i})"><div><div class="l-main">${esc(r.route)}</div><div class="l-sub">#TR-${r.public_id}</div></div><div class="l-field"><span class="k">Erstellt</span>${new Date(r.created_at).toLocaleDateString(lang==='de'?'de-DE':'en-GB')}</div><div class="l-field"><span class="k">Angebote</span>${r.offers}</div><div class="status-badge ${statusClass[r.status]||'grey'}">${esc(r.status)}</div></div>`).join('') || '<div class="no-results">Keine Anfragen vorhanden.</div>';}catch(e){apiToast(e.message)}
+  try{const out=await api('/requests?mine=true');trassaRequests=out.requests||[];document.getElementById('myreq-list').innerHTML=trassaRequests.map((r,i)=>`<div class="list-row clickable" onclick="window.openRequestDetail(${i})"><div><div class="l-main">${esc(r.route)}</div><div class="l-sub">#TR-${r.public_id}</div></div><div class="l-field"><span class="k">Erstellt</span>${new Date(r.created_at).toLocaleDateString(lang==='de'?'de-DE':'en-GB')}</div><div class="l-field"><span class="k">Angebote</span>${r.offers}</div><div class="status-badge ${statusClass[r.status]||'grey'}">${esc(r.status)}</div></div>`).join('') || '<div class="no-results">Keine Anfragen vorhanden.</div>';}catch(e){apiToast(e.message)}
 }
-async function openRequestDetail(index){ currentRequestIndex=index; const r=trassaRequests[index]; if(!r)return; document.getElementById('req-detail-h1').textContent=r.title||r.route;document.getElementById('req-detail-sub').textContent='#TR-'+r.public_id;document.getElementById('req-detail-grid').innerHTML=[['Strecke',r.route],['Zeitraum',r.zeit],['Gewicht',r.gewicht],['Lichtraumprofil',r.loading_gauge||'—'],['Wagenart',r.wagon_type||'—'],['Gefahrgut',r.hazardous_goods?'Ja':'Nein'],['Erstellt am',new Date(r.created_at).toLocaleDateString(lang==='de'?'de-DE':'en-GB')],['Angebote',r.offers],['Status',r.status]].map(([k,v])=>`<div class="detail-item"><span class="k">${esc(k)}</span><div class="v">${esc(v)}</div></div>`).join('');document.getElementById('req-detail-desc').textContent=r.description||'—';document.getElementById('req-detail-actions').innerHTML=r.offers>0?`<button type="button" class="btn btn-primary" onclick="switchAppPanel('angebote')">Angebote ansehen (${r.offers})</button>`:`<span class="status-badge ${statusClass[r.status]||'grey'}">${esc(r.status)}</span>`;switchAppPanel('anfrage-detail'); }
+function requestDisplayValue(value){
+  if(value===null || value===undefined || value==='') return '—';
+  const t=translations[lang] || {};
+  return t[value] || value;
+}
+function requestStatusLabel(status){
+  const t=translations[lang] || {};
+  return t['status_'+status] || status || '—';
+}
+function renderRealRequestDetail(r){
+  if(!r) return;
+  const locale=lang==='de'?'de-DE':'en-GB';
+  const labels=lang==='de'
+    ? {route:'Strecke', period:'Zeitraum', weight:'Gewicht', gauge:'Lichtraumprofil', wagon:'Wagenart', hazardous:'Gefahrgut', created:'Erstellt am', offers:'Angebote', status:'Status', yes:'Ja', no:'Nein', showOffers:'Angebote ansehen'}
+    : {route:'Route', period:'Timeframe', weight:'Weight', gauge:'Loading gauge', wagon:'Wagon type', hazardous:'Hazardous goods', created:'Created on', offers:'Offers', status:'Status', yes:'Yes', no:'No', showOffers:'View offers'};
+  const start=r.start_location || '';
+  const destination=r.destination || '';
+  const route=(start || destination) ? `${start || '—'} → ${destination || '—'}` : (r.route || '—');
+  const period=r.zeit || ((r.from_date || r.to_date) ? `${r.from_date || '—'} – ${r.to_date || '—'}` : '—');
+  const weight=r.gewicht || (r.weight_t ? `${r.weight_t} t` : '—');
+  const created=r.created_at ? new Date(r.created_at).toLocaleDateString(locale) : '—';
+  const offers=Number(r.offers || 0);
+  document.getElementById('req-detail-h1').textContent=r.title || route;
+  document.getElementById('req-detail-sub').textContent='#TR-'+r.public_id;
+  document.getElementById('req-detail-grid').innerHTML=[
+    [labels.route,route],
+    [labels.period,period],
+    [labels.weight,weight],
+    [labels.gauge,requestDisplayValue(r.loading_gauge)],
+    [labels.wagon,requestDisplayValue(r.wagon_type)],
+    [labels.hazardous,r.hazardous_goods?labels.yes:labels.no],
+    [labels.created,created],
+    [labels.offers,offers],
+    [labels.status,requestStatusLabel(r.status)]
+  ].map(([k,v])=>`<div class="detail-item"><span class="k">${esc(k)}</span><div class="v">${esc(v)}</div></div>`).join('');
+  document.getElementById('req-detail-desc').textContent=r.description || '—';
+  document.getElementById('req-detail-actions').innerHTML=offers>0
+    ? `<button type="button" class="btn btn-primary" onclick="switchAppPanel('angebote')">${esc(labels.showOffers)} (${offers})</button>`
+    : `<span class="status-badge ${statusClass[r.status]||'grey'}">${esc(requestStatusLabel(r.status))}</span>`;
+}
+async function openRequestDetail(index){
+  currentRequestIndex=index;
+  const listRow=trassaRequests[index];
+  if(!listRow) return;
+  try{
+    // Fetch the selected row again by database UUID so the detail screen always
+    // uses the authoritative PostgreSQL record, not any legacy demo array.
+    const out=await api('/requests/'+encodeURIComponent(listRow.id));
+    const r=out.request || listRow;
+    window.__trassaCurrentRequest=r;
+    await switchAppPanel('anfrage-detail');
+    renderRealRequestDetail(r);
+  }catch(e){
+    window.__trassaCurrentRequest=listRow;
+    await switchAppPanel('anfrage-detail');
+    renderRealRequestDetail(listRow);
+    apiToast(e.message);
+  }
+}
+window.openRequestDetail=openRequestDetail;
+window.renderRealRequestDetail=renderRealRequestDetail;
 
 async function renderMarketRequests(){
   try{const q=document.getElementById('m-f-search')?.value.trim()||'';const out=await api('/requests'+(q?'?q='+encodeURIComponent(q):''));const list=out.requests||[];document.getElementById('m-req-list').innerHTML=list.map(r=>`<div class="req-row"><div><div class="r-route">${esc(r.route)}</div><div class="r-sub">#TR-${r.public_id} · ${esc(r.title)}</div></div><div class="r-field"><span class="k">Zeitraum</span>${esc(r.zeit||'—')}</div><div class="r-field"><span class="k">Gewicht</span>${esc(r.gewicht||'—')}</div><div class="r-field"><span class="k">Wagenart</span>${esc(r.wagon_type||'—')}</div><div class="req-badge ${r.gefahr?'gefahr':''}">${r.gefahr?'Gefahrgut':'Offen'}</div></div>`).join('')||'<div class="no-results">Keine Anfragen gefunden.</div>';}catch(e){apiToast(e.message)}
@@ -89,7 +149,7 @@ async function submitSettings(event){event.preventDefault();try{await api('/sett
 
 async function publishNewRequest(){return createRequest('new')}
 async function saveDraftRequest(){return createRequest('draft')}
-async function createRequest(status){const data=collectNewRequestData();if((status==='new'&&(!data.start||!data.ziel||!data.titel))||(!data.start&&!data.ziel&&!data.titel)){apiToast('Bitte Pflichtfelder ausfüllen.');return}try{await api('/requests',{method:'POST',body:JSON.stringify({...data,status})});apiToast(status==='new'?'Anfrage veröffentlicht.':'Entwurf gespeichert.');switchAppPanel('anfragen');}catch(e){apiToast(e.message)}}
+async function createRequest(status){window.__trassaCurrentRequest=null;const data=collectNewRequestData();if((status==='new'&&(!data.start||!data.ziel||!data.titel))||(!data.start&&!data.ziel&&!data.titel)){apiToast('Bitte Pflichtfelder ausfüllen.');return}try{await api('/requests',{method:'POST',body:JSON.stringify({...data,status})});apiToast(status==='new'?'Anfrage veröffentlicht.':'Entwurf gespeichert.');switchAppPanel('anfragen');}catch(e){apiToast(e.message)}}
 
 const oldSwitchAppPanel=window.switchAppPanel;
 window.switchAppPanel=async function(name){oldSwitchAppPanel(name);if(!trassaUser)return;try{if(name==='dashboard')await trassaLoadDashboard();if(name==='marktplatz')await renderMarketRequests();if(name==='anfragen')await renderMyRequests();if(name==='angebote')await renderOffers();if(name==='transporte')await renderTransports();if(name==='nachrichten')await renderMessages();if(name==='dokumente')await renderDocuments();if(name==='abrechnung')await renderBilling();if(name==='einstellungen')await loadSettings();}catch(e){console.error(e)}};
