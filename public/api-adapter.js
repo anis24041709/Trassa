@@ -58,8 +58,37 @@ async function trassaLoadDashboard(){
 
 function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
 
+function formatDateDMY(value){
+  if(!value) return '—';
+  const raw=String(value).slice(0,10);
+  const m=raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(m) return `${m[3]}.${m[2]}.${m[1]}`;
+  const d=new Date(value);
+  if(Number.isNaN(d.getTime())) return String(value);
+  const dd=String(d.getDate()).padStart(2,'0');
+  const mm=String(d.getMonth()+1).padStart(2,'0');
+  return `${dd}.${mm}.${d.getFullYear()}`;
+}
+function isYoungerThanOneDay(createdAt){
+  const created=new Date(createdAt).getTime();
+  return Number.isFinite(created) && (Date.now()-created) < 24*60*60*1000;
+}
+function requestListStatusBadge(r){
+  if(r.status==='new'){
+    return isYoungerThanOneDay(r.created_at)
+      ? `<div class="status-badge grey">${lang==='de'?'Neu':'New'}</div>`
+      : '';
+  }
+  const label=requestStatusLabel(r.status);
+  return `<div class="status-badge ${statusClass[r.status]||'grey'}">${esc(label)}</div>`;
+}
+
 async function renderMyRequests(){
-  try{const out=await api('/requests?mine=true');trassaRequests=out.requests||[];document.getElementById('myreq-list').innerHTML=trassaRequests.map((r,i)=>`<div class="list-row clickable" onclick="window.openRequestDetail(${i})"><div><div class="l-main">${esc(r.route)}</div><div class="l-sub">#TR-${r.public_id}</div></div><div class="l-field"><span class="k">Erstellt</span>${new Date(r.created_at).toLocaleDateString(lang==='de'?'de-DE':'en-GB')}</div><div class="l-field"><span class="k">Angebote</span>${r.offers}</div><div class="status-badge ${statusClass[r.status]||'grey'}">${esc(r.status)}</div></div>`).join('') || '<div class="no-results">Keine Anfragen vorhanden.</div>';}catch(e){apiToast(e.message)}
+  try{
+    const out=await api('/requests?mine=true');
+    trassaRequests=out.requests||[];
+    document.getElementById('myreq-list').innerHTML=trassaRequests.map((r,i)=>`<div class="list-row clickable" onclick="window.openRequestDetail(${i})"><div><div class="l-main">${esc(r.route)}</div><div class="l-sub">#TR-${r.public_id}</div></div><div class="l-field"><span class="k">${lang==='de'?'Erstellt':'Created'}</span>${formatDateDMY(r.created_at)}</div><div class="l-field"><span class="k">${lang==='de'?'Angebote':'Offers'}</span>${r.offers}</div>${requestListStatusBadge(r)}</div>`).join('') || `<div class="no-results">${lang==='de'?'Keine Anfragen vorhanden.':'No requests available.'}</div>`;
+  }catch(e){apiToast(e.message)}
 }
 function requestDisplayValue(value){
   if(value===null || value===undefined || value==='') return '—';
@@ -79,9 +108,9 @@ function renderRealRequestDetail(r){
   const start=r.start_location || '';
   const destination=r.destination || '';
   const route=(start || destination) ? `${start || '—'} → ${destination || '—'}` : (r.route || '—');
-  const period=r.zeit || ((r.from_date || r.to_date) ? `${r.from_date || '—'} – ${r.to_date || '—'}` : '—');
+  const period=(r.from_date || r.to_date) ? `${r.from_date ? formatDateDMY(r.from_date) : '—'} – ${r.to_date ? formatDateDMY(r.to_date) : '—'}` : (r.zeit || '—');
   const weight=r.gewicht || (r.weight_t ? `${r.weight_t} t` : '—');
-  const created=r.created_at ? new Date(r.created_at).toLocaleDateString(locale) : '—';
+  const created=r.created_at ? formatDateDMY(r.created_at) : '—';
   const offers=Number(r.offers || 0);
   document.getElementById('req-detail-h1').textContent=r.title || route;
   document.getElementById('req-detail-sub').textContent='#TR-'+r.public_id;
