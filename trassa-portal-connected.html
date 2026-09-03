@@ -568,12 +568,257 @@
   footer p{color:var(--text-dim);font-size:14px;max-width:52ch;margin:0 auto 26px;}
   footer .fine{margin-top:40px;font-family:var(--mono);font-size:11px;color:var(--text-faint);}
 </style>
+
+
+<style id="trassa-v41-complete-light">
+/* TRASSA Portal v4.1 – complete light design */
+:root{
+  --bg:#f5f8fc !important;--bg-raised:#ffffff !important;--surface:#ffffff !important;--surface-2:#eef6ff !important;
+  --line:#d9e4ee !important;--line-soft:#e8eef5 !important;--text:#172437 !important;--text-dim:#66758a !important;--text-faint:#8b98a8 !important;
+  --amber:#0b82d8 !important;--amber-dim:#a8d7f4 !important;--green:#2ba84a !important;--green-dim:#e9f8ed !important;--red:#d94b4b !important;
+  --radius:10px !important;--display:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif !important;
+}
+body{background:#f5f8fc !important;color:#172437 !important;}
+h1,h2,h3,h4{text-transform:none !important;letter-spacing:-.02em !important;font-weight:800 !important;}
+header{background:rgba(255,255,255,.96) !important;border-bottom:1px solid #e3ebf2 !important;box-shadow:0 1px 6px rgba(27,60,96,.04);}
+.logo{color:#087bc9 !important;font-family:Inter,system-ui,sans-serif !important;font-weight:900 !important;}.logo span{color:#087bc9 !important;}
+.nav-links a{color:#59697e !important;text-transform:none !important;letter-spacing:0 !important;font-weight:600 !important;}.nav-links a:hover{color:#087bc9 !important;}
+.lang-toggle{background:#fff !important;border-color:#d9e4ee !important;border-radius:8px !important}.lang-toggle button{text-transform:none !important;color:#6d7c8f !important}.lang-toggle button.active{background:#e7f3fe !important;color:#0876c5 !important;border-radius:6px !important}
+.hero{background:linear-gradient(180deg,#fff 0%,#f7fafe 100%) !important;border-bottom-color:#e8eef5 !important;}.hero h1 em{color:#087bc9 !important}.hero p.lead{color:#617087 !important}
+.btn{border-radius:8px !important;text-transform:none !important;letter-spacing:0 !important;font-weight:700 !important}.btn-primary{background:#0b82d8 !important;color:#fff !important}.btn-primary:hover{background:#0875c3 !important}.btn-ghost{background:#fff !important;border-color:#d6e2ec !important;color:#3d5269 !important}.btn-ghost:hover{background:#f6faff !important;border-color:#a9cce4 !important;color:#0876c5 !important}
+section{background:#f5f8fc !important;border-bottom-color:#e7edf4 !important}.section-head p{color:#68778a !important}.eyebrow{color:#0b82d8 !important}.eyebrow::before{background:#0b82d8 !important}
+.group-cell,.cat-item,.req-row{background:#fff !important}.group-cell:hover,.cat-item:hover{background:#f8fbfe !important}.groups-grid,.cat-panel.active,.req-list{background:#e5edf4 !important;border-color:#e1e9f0 !important}
+.case-card,.dash,.chat-mock,.filters,.rating-item{background:#fff !important;border-color:#dde7ef !important;box-shadow:0 4px 16px rgba(28,57,91,.04)}
+.case-card .qmark{color:#dbe7f0 !important}.cat-tab{border-color:#d9e4ee !important;color:#66768a !important;border-radius:8px !important;text-transform:none !important}.cat-tab.active{background:#e7f3fe !important;border-color:#b9d8ed !important;color:#0876c5 !important}
+.p-dot{background:#fff !important}.process-track{background:#dbe5ee !important}
+.filters select,.filters input{background:#fff !important;border-color:#d8e3ec !important;color:#26364b !important;border-radius:8px !important}.req-badge{background:#e8f8ed !important;color:#24823c !important;border-radius:999px !important}.req-badge.gefahr{background:#ffeded !important;color:#c63d3d !important}
+.dash-tabs{border-bottom-color:#e5edf4 !important}.dash-tab{border-right-color:#e5edf4 !important;color:#7b8999 !important;text-transform:none !important}.dash-tab.active{background:#eaf4fd !important;color:#0876c5 !important}.dash-stat{background:#f9fbfd !important;border-color:#e6edf4 !important;border-radius:9px !important}.dash-stat .num{color:#087bc9 !important}
+.bubble.in{background:#f1f5f9 !important;border-color:#e2e9f0 !important;color:#334155 !important}.bubble.out{background:#e3f2fd !important;color:#145982 !important}
+footer{background:#fff !important;border-top:1px solid #e5edf4 !important}
+.modal-overlay{background:rgba(28,48,70,.34) !important}.modal{background:#fff !important;border-color:#dce6ee !important;border-radius:14px !important;box-shadow:0 24px 70px rgba(28,55,84,.18) !important}.modal-tabs{background:#f1f5f9 !important;border-color:#e0e8ef !important;border-radius:9px !important}.modal-tab{text-transform:none !important;letter-spacing:0 !important;border-radius:7px !important}.modal-tab.active{background:#0b82d8 !important;color:#fff !important}.field input,.field select,.field textarea{background:#fff !important;border-color:#d7e2ec !important;color:#26364b !important;border-radius:8px !important}.field input:focus,.field select:focus,.field textarea:focus{border-color:#78bee9 !important;box-shadow:0 0 0 3px rgba(11,130,216,.09) !important}.modal-msg{background:#eaf8ee !important;border-color:#b9e6c4 !important;color:#236f35 !important}
+
+/* TRASSA Portal – Light UI v4
+   Scoped to the authenticated portal so the public landing page keeps its existing presentation. */
+body.app-mode{
+  --bg:#f5f8fc;
+  --bg-raised:#ffffff;
+  --surface:#ffffff;
+  --surface-2:#eef5ff;
+  --line:#dbe5f0;
+  --line-soft:#e8eef5;
+  --text:#152238;
+  --text-dim:#66758a;
+  --text-faint:#8c99aa;
+  --amber:#0b82d8;
+  --amber-dim:#e4f3ff;
+  --green:#2ba84a;
+  --green-dim:#e9f8ed;
+  --radius:10px;
+  --body:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --display:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --mono:"SFMono-Regular",Consolas,"Liberation Mono",monospace;
+  background:var(--bg);
+  color:var(--text);
+}
+body.app-mode #app-view{background:var(--bg);align-items:stretch;}
+body.app-mode .app-sidebar{
+  width:260px;background:#fff;border-right:1px solid var(--line-soft);padding:24px 16px 18px;
+  box-shadow:1px 0 0 rgba(20,50,85,.02);z-index:4;
+}
+body.app-mode .app-sidebar .logo{
+  padding:0 12px 22px;color:#0b78c8;font-size:27px;font-weight:850;letter-spacing:.035em;
+  display:flex;align-items:center;gap:10px;
+}
+body.app-mode .app-sidebar .logo::before{content:"▰";font-size:26px;transform:skew(-13deg);color:#21a0e8;line-height:1;}
+body.app-mode .app-sidebar .logo span{color:#0b78c8;}
+body.app-mode .app-nav{gap:6px;}
+body.app-mode .app-nav-item{
+  border:0;border-radius:9px;padding:11px 13px;color:#3d4b5f;font-size:14px;font-weight:530;
+  transition:background .15s,color .15s,transform .15s;
+}
+body.app-mode .app-nav-item .ico{filter:saturate(.65);width:22px;}
+body.app-mode .app-nav-item:hover{background:#f2f7fc;color:#0b72c5;transform:translateX(1px);}
+body.app-mode .app-nav-item.active{background:#e8f3ff;color:#086fc1;font-weight:700;border:0;}
+body.app-mode .app-sidebar-foot{border-top:1px solid var(--line-soft);padding:15px 8px 0;}
+body.app-mode .app-logout{border:0;color:#e53e3e;text-transform:none;letter-spacing:0;background:transparent;text-align:left;padding:10px 11px;font-weight:650;}
+body.app-mode .app-logout:hover{background:#fff1f1;color:#d52b2b;}
+
+body.app-mode .app-main{padding:0 30px 46px;background:var(--bg);}
+body.app-mode .portal-header{
+  height:78px;margin:0 -30px 26px;padding:0 30px;background:#fff;border-bottom:1px solid var(--line-soft);
+  display:flex;align-items:center;gap:18px;position:sticky;top:0;z-index:3;
+}
+body.app-mode .portal-search{position:relative;flex:1;max-width:620px;}
+body.app-mode .portal-search::before{content:"⌕";position:absolute;left:14px;top:50%;transform:translateY(-52%);color:#8fa0b4;font-size:22px;}
+body.app-mode .portal-search input{
+  width:100%;height:42px;background:#f9fbfd;border:1px solid #dfe7ef;border-radius:8px;padding:0 14px 0 43px;
+  color:var(--text);font:500 13px var(--body);outline:none;
+}
+body.app-mode .portal-search input:focus{border-color:#79bfe9;box-shadow:0 0 0 3px rgba(11,130,216,.10);}
+body.app-mode .portal-header-actions{margin-left:auto;display:flex;align-items:center;gap:10px;}
+body.app-mode .portal-icon-btn{width:38px;height:38px;border:0;background:transparent;border-radius:8px;display:grid;place-items:center;color:#435269;cursor:pointer;font-size:17px;}
+body.app-mode .portal-icon-btn:hover{background:#f2f6fa;}
+body.app-mode .portal-account{display:flex;align-items:center;gap:10px;padding-left:10px;margin-left:2px;border-left:1px solid var(--line-soft);}
+body.app-mode .portal-account-copy{text-align:right;line-height:1.15;}
+body.app-mode .portal-account-copy strong{display:block;font-size:12.5px;color:#26354a;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+body.app-mode .portal-account-copy small{font-size:10.5px;color:#7c8a9b;}
+body.app-mode .portal-avatar{width:38px;height:38px;border-radius:50%;background:#0b8dd7;color:#fff;display:grid;place-items:center;font-size:12px;font-weight:800;box-shadow:0 4px 12px rgba(11,141,215,.18);}
+
+body.app-mode .app-topbar{margin-bottom:22px;align-items:center;}
+body.app-mode .app-welcome h1{font-size:24px;color:#172437;letter-spacing:-.025em;font-weight:800;}
+body.app-mode .app-welcome p{color:#6f7d90;}
+body.app-mode .lang-toggle{background:#fff;border:1px solid var(--line);border-radius:8px;padding:3px;}
+body.app-mode .lang-toggle button{border-radius:6px;color:#758398;}
+body.app-mode .lang-toggle button.active{background:#e7f3fe;color:#0a76c6;}
+
+body.app-mode .kpi-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:18px;}
+body.app-mode .kpi-card{
+  position:relative;min-height:116px;background:#fff;border:1px solid #e4ebf2;border-radius:10px;padding:17px 18px;
+  box-shadow:0 3px 12px rgba(28,57,91,.045);overflow:hidden;
+}
+body.app-mode .kpi-card::after{content:"";position:absolute;right:16px;top:18px;width:42px;height:42px;border-radius:50%;background:#edf6ff;}
+body.app-mode .kpi-card:nth-child(2)::after{background:#ebf8ee;}
+body.app-mode .kpi-card:nth-child(3)::after{background:#f2edff;}
+body.app-mode .kpi-card:nth-child(4)::after{background:#fff6dd;}
+body.app-mode .kpi-card .num{font-size:29px;color:#142235;font-weight:800;margin-top:23px;}
+body.app-mode .kpi-card .lbl{font-size:12px;color:#526177;margin-top:4px;max-width:75%;}
+
+body.app-mode .dash-cols{grid-template-columns:1.5fr 1fr;gap:16px;}
+body.app-mode .panel,body.app-mode .list-panel,body.app-mode .msg-shell,body.app-mode .form-card{
+  background:#fff;border:1px solid #e2e9f0;border-radius:10px;box-shadow:0 3px 12px rgba(28,57,91,.04);
+}
+body.app-mode .panel{padding:17px 0;}
+body.app-mode .panel-head{padding:0 17px 13px;border-bottom:1px solid #edf1f5;}
+body.app-mode .panel-head h3{font-size:14px;text-transform:none;letter-spacing:0;color:#1d2a3d;font-weight:750;}
+body.app-mode .panel-head a{color:#0677ca;font-size:12px;font-weight:650;}
+body.app-mode .panel .req-row{background:#fff;padding:14px 17px;}
+body.app-mode .req-row,body.app-mode .list-row{border-color:#edf1f5;}
+body.app-mode .req-row:hover,body.app-mode .list-row.clickable:hover{background:#f9fbfd;}
+body.app-mode .activity-item{padding:14px 17px;border-bottom-color:#edf1f5;}
+body.app-mode .activity-item .txt{color:#334258;}
+body.app-mode .activity-item .time{color:#8b98a8;}
+
+body.app-mode .quick-actions{margin-top:17px;gap:10px;}
+body.app-mode .btn{border-radius:8px;text-transform:none;letter-spacing:0;font-weight:700;box-shadow:none;}
+body.app-mode .btn-primary{background:#0b82d8;border-color:#0b82d8;color:#fff;}
+body.app-mode .btn-primary:hover{background:#0875c3;border-color:#0875c3;transform:translateY(-1px);}
+body.app-mode .btn-ghost{background:#fff;border:1px solid #d9e3ec;color:#385069;}
+body.app-mode .btn-ghost:hover{background:#f8fbfd;border-color:#bdd3e4;color:#0a6fb8;}
+
+body.app-mode .panel-title-row{margin:2px 0 20px;}
+body.app-mode .panel-title-row h1{font-size:24px;color:#172437;font-weight:800;letter-spacing:-.025em;}
+body.app-mode .panel-title-row p{color:#6c7a8d;}
+body.app-mode .filter-bar select,body.app-mode .filter-bar input,
+body.app-mode .field input,body.app-mode .field select,body.app-mode .field textarea,
+body.app-mode .msg-compose input{
+  background:#fff;border:1px solid #dce5ed;color:#26364b;border-radius:8px;
+}
+body.app-mode .filter-bar select:focus,body.app-mode .filter-bar input:focus,
+body.app-mode .field input:focus,body.app-mode .field select:focus,body.app-mode .field textarea:focus{
+  outline:none;border-color:#78bee9;box-shadow:0 0 0 3px rgba(11,130,216,.09);
+}
+body.app-mode .list-panel{gap:0;border-color:#e2e9f0;overflow:hidden;}
+body.app-mode .list-row{background:#fff;border-bottom:1px solid #edf1f5;}
+body.app-mode .list-row:last-child{border-bottom:0;}
+body.app-mode .list-row .l-main{color:#26364b;}
+body.app-mode .list-row .l-field{color:#607087;}
+body.app-mode .status-badge{border-radius:999px;text-transform:none;letter-spacing:0;font-family:var(--body);font-weight:700;padding:5px 9px;}
+body.app-mode .status-badge.green{background:#e7f7eb;color:#23823b;}
+body.app-mode .status-badge.amber{background:#fff4d6;color:#9b6900;}
+body.app-mode .status-badge.red{background:#ffeded;color:#c43b3b;}
+body.app-mode .status-badge.grey{background:#eef2f6;color:#68778b;}
+body.app-mode .status-badge.blue{background:#e7f3fe;color:#0b72bf;}
+body.app-mode .toast{background:#fff;border-color:#dce6ef;color:#24334a;box-shadow:0 10px 30px rgba(30,58,88,.16);border-radius:8px;}
+
+body.app-mode .conv-list{background:#f8fafc;border-right-color:#e6edf4;}
+body.app-mode .conv-item{border-bottom-color:#e9eef4;}
+body.app-mode .conv-item.active{background:#eaf4fd;}
+body.app-mode .msg-area{background:#fff;}
+body.app-mode .msg-bubble.in{background:#f1f5f9;color:#334155;}
+body.app-mode .msg-bubble.out{background:#e3f2fd;color:#145982;}
+
+@media(max-width:1050px){
+  body.app-mode .app-sidebar{width:218px;}
+  body.app-mode .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+  body.app-mode .portal-account-copy{display:none;}
+}
+@media(max-width:780px){
+  body.app-mode #app-view{display:block;}
+  body.app-mode .app-sidebar{position:relative;width:100%;height:auto;padding:14px 12px;border-right:0;border-bottom:1px solid var(--line-soft);}
+  body.app-mode .app-sidebar .logo{padding-bottom:12px;}
+  body.app-mode .app-nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));}
+  body.app-mode .app-sidebar-foot{margin-top:10px;}
+  body.app-mode .app-main{padding:0 14px 30px;}
+  body.app-mode .portal-header{margin:0 -14px 18px;padding:0 14px;height:66px;}
+  body.app-mode .portal-header-actions .portal-icon-btn{display:none;}
+  body.app-mode .dash-cols{grid-template-columns:1fr;}
+}
+@media(max-width:520px){body.app-mode .kpi-grid{grid-template-columns:1fr;}body.app-mode .portal-search{display:none;}}
+
+
+<style id="trassa-v42-dashboard-polish">
+/* V4.2 dashboard – closer to the approved light concept */
+body.app-mode .app-sidebar{width:262px;padding:22px 17px 18px}
+body.app-mode .app-sidebar .logo{font-size:26px;letter-spacing:.065em;gap:12px}
+body.app-mode .app-sidebar .logo::before{content:"";width:34px;height:30px;display:block;background:linear-gradient(135deg,#18a4ea,#0879c9);clip-path:polygon(38% 0,62% 0,100% 100%,75% 100%,58% 48%,42% 48%,25% 100%,0 100%)}
+body.app-mode .app-nav-item{min-height:43px;font-size:13.5px;padding:10px 12px}
+body.app-mode .app-nav-item .ico{font-family:Inter,system-ui,sans-serif;font-size:18px;text-align:center;color:#42546a;filter:none}
+body.app-mode .app-nav-item.active .ico{color:#0879c9}
+body.app-mode .portal-header{height:72px}
+body.app-mode .portal-icon-btn:first-child{position:relative}
+body.app-mode .portal-icon-btn:first-child::after{content:"3";position:absolute;right:2px;top:3px;background:#ef4444;color:#fff;font:700 9px/16px Inter;width:16px;height:16px;border-radius:99px}
+body.app-mode .app-welcome h1{font-size:25px}
+body.app-mode .app-welcome p{font-size:13px;margin-top:6px}
+body.app-mode .dashboard-kpis{grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+body.app-mode .dashboard-kpis .kpi-card{min-height:150px;padding:16px 16px 14px;display:flex;flex-direction:column;align-items:flex-start;box-shadow:0 2px 9px rgba(28,57,91,.04)}
+body.app-mode .dashboard-kpis .kpi-card::after{display:none}
+body.app-mode .kpi-title{font-size:12px;font-weight:700;color:#28384e;padding-right:44px}
+body.app-mode .kpi-icon{position:absolute;right:15px;top:15px;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:#eaf4ff;color:#0b82d8;font-size:18px;font-weight:800}
+body.app-mode .kpi-card[data-kpi="offers"] .kpi-icon{background:#eaf8ee;color:#2b9b49}
+body.app-mode .kpi-card[data-kpi="transports"] .kpi-icon{background:#f2edff;color:#7c56cf}
+body.app-mode .kpi-card[data-kpi="messages"] .kpi-icon{background:#fff5df;color:#e3a31c}
+body.app-mode .kpi-card[data-kpi="rating"] .kpi-icon{background:#fff7dd;color:#f5b400}
+body.app-mode .dashboard-kpis .kpi-card .num{font-size:28px;margin-top:18px}
+body.app-mode .dashboard-kpis .kpi-card .num.rating-num{font-size:26px;white-space:nowrap}
+body.app-mode .dashboard-kpis .rating-num span{font-size:18px;color:#9aa7b8;font-weight:700}
+body.app-mode .dashboard-kpis .kpi-card .lbl{font-size:10.8px;line-height:1.35;max-width:100%;min-height:29px}
+body.app-mode .dashboard-kpis .kpi-card button{margin-top:auto;border:0;background:transparent;padding:0;color:#0879c9;font:700 11px Inter;cursor:pointer}
+body.app-mode .dashboard-primary{grid-template-columns:1.25fr 1fr}
+body.app-mode .panel-head h3{font-size:15px}
+body.app-mode .dashboard-bottom-grid{display:grid;grid-template-columns:1.65fr .85fr;gap:16px;margin-top:16px}
+body.app-mode .dashboard-box{background:#fff;border:1px solid #e2e9f0;border-radius:10px;box-shadow:0 3px 12px rgba(28,57,91,.04);overflow:hidden}
+body.app-mode .dashboard-box-head{padding:16px 17px 13px;border-bottom:1px solid #edf1f5}
+body.app-mode .dashboard-box-head h3{font-size:15px;color:#1d2a3d}
+body.app-mode .action-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:14px}
+body.app-mode .action-tiles button{min-height:88px;background:#fbfcfe;border:1px solid #e2e9f0;border-radius:9px;color:#334258;font:650 11px Inter;cursor:pointer;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:8px}
+body.app-mode .action-tiles button:hover{background:#f1f7fd;border-color:#c8ddeb;color:#0876c5}
+body.app-mode .action-tiles button span{width:31px;height:31px;border-radius:50%;display:grid;place-items:center;background:#eaf4ff;color:#0b82d8;font-size:19px}
+body.app-mode .useful-links{padding-bottom:4px}
+body.app-mode .useful-links>button{width:calc(100% - 28px);margin:0 14px;padding:14px 2px;border:0;border-bottom:1px solid #edf1f5;background:#fff;text-align:left;color:#405066;font:600 12px Inter;cursor:pointer}
+body.app-mode .useful-links>button:last-child{border-bottom:0}
+body.app-mode .useful-links>button b{float:right;font-size:19px;font-weight:500;color:#8b99aa}
+body.app-mode .useful-links>button:hover{color:#0876c5}
+@media(max-width:1280px){body.app-mode .dashboard-kpis{grid-template-columns:repeat(3,1fr)}body.app-mode .dashboard-kpis .kpi-card:nth-child(4),body.app-mode .dashboard-kpis .kpi-card:nth-child(5){min-height:135px}}
+@media(max-width:980px){body.app-mode .dashboard-kpis{grid-template-columns:repeat(2,1fr)}body.app-mode .dashboard-bottom-grid{grid-template-columns:1fr}}
+@media(max-width:620px){body.app-mode .dashboard-kpis{grid-template-columns:1fr}body.app-mode .action-tiles{grid-template-columns:repeat(2,1fr)}}
+</style>
+</style>
+
+<style id="trassa-logo-v43">
+.logo{display:flex!important;align-items:center!important;gap:11px!important}
+.logo::before{content:none!important;display:none!important}
+.trassa-logo-mark{width:40px;height:40px;display:block;flex:0 0 40px;filter:drop-shadow(0 2px 4px rgba(11,132,216,.16))}
+.trassa-logo-word{display:inline-block;color:#087bc9!important;font-weight:900;letter-spacing:.075em}
+.trassa-logo-word>span{color:#087bc9!important}
+body.app-mode .app-sidebar .logo{font-size:24px!important;letter-spacing:0!important}
+@media(max-width:760px){.trassa-logo-mark{width:34px;height:34px;flex-basis:34px}.trassa-logo-word{font-size:20px}}
+</style>
 </head>
 <body>
 
 <header>
   <nav>
-    <div class="logo">TRAS<span>SA</span></div>
+    <div class="logo"><svg class="trassa-logo-mark" viewBox="0 0 64 64" aria-hidden="true"><path d="M25 5h14l18 54H45l-4-12H23l-4 12H7L25 5Z" fill="#0b84d8"/><path d="M29 13h6l3 9H26l3-9Zm-5 16h16l3 8H21l3-8Zm-6 16h28l3 8H15l3-8Z" fill="#fff"/><path d="M31 5h2v54h-2z" fill="#dff3ff" opacity=".95"/></svg><span class="trassa-logo-word">TRAS<span>SA</span></span></div>
     <div class="nav-links">
       <a href="#marktplatz" data-i18n="nav_market">Marktplatz</a>
       <a href="#ablauf" data-i18n="nav_process">Ablauf</a>
@@ -830,17 +1075,17 @@
 
 <div id="app-view">
   <aside class="app-sidebar">
-    <div class="logo">TRAS<span>SA</span></div>
+    <div class="logo"><svg class="trassa-logo-mark" viewBox="0 0 64 64" aria-hidden="true"><path d="M25 5h14l18 54H45l-4-12H23l-4 12H7L25 5Z" fill="#0b84d8"/><path d="M29 13h6l3 9H26l3-9Zm-5 16h16l3 8H21l3-8Zm-6 16h28l3 8H15l3-8Z" fill="#fff"/><path d="M31 5h2v54h-2z" fill="#dff3ff" opacity=".95"/></svg><span class="trassa-logo-word">TRAS<span>SA</span></span></div>
     <nav class="app-nav" id="app-nav">
-      <div class="app-nav-item active" data-panel="dashboard"><span class="ico">📊</span><span data-i18n="sb_dashboard">Dashboard</span></div>
-      <div class="app-nav-item" data-panel="marktplatz"><span class="ico">🛒</span><span data-i18n="sb_market">Marktplatz</span></div>
-      <div class="app-nav-item" data-panel="anfragen"><span class="ico">📋</span><span data-i18n="sb_requests">Anfragen</span></div>
-      <div class="app-nav-item" data-panel="angebote"><span class="ico">💼</span><span data-i18n="sb_offers">Angebote</span></div>
-      <div class="app-nav-item" data-panel="transporte"><span class="ico">🚂</span><span data-i18n="sb_transports">Transporte</span></div>
-      <div class="app-nav-item" data-panel="nachrichten"><span class="ico">💬</span><span data-i18n="sb_messages">Nachrichten</span></div>
-      <div class="app-nav-item" data-panel="dokumente"><span class="ico">📁</span><span data-i18n="sb_documents">Dokumente</span></div>
-      <div class="app-nav-item" data-panel="abrechnung"><span class="ico">🧾</span><span data-i18n="sb_billing">Abrechnung</span></div>
-      <div class="app-nav-item" data-panel="einstellungen"><span class="ico">⚙️</span><span data-i18n="sb_settings">Einstellungen</span></div>
+      <div class="app-nav-item active" data-panel="dashboard"><span class="ico">⌂</span><span data-i18n="sb_dashboard">Dashboard</span></div>
+      <div class="app-nav-item" data-panel="marktplatz"><span class="ico">⌕</span><span data-i18n="sb_market">Marktplatz</span></div>
+      <div class="app-nav-item" data-panel="anfragen"><span class="ico">▤</span><span data-i18n="sb_requests">Anfragen</span></div>
+      <div class="app-nav-item" data-panel="angebote"><span class="ico">◇</span><span data-i18n="sb_offers">Angebote</span></div>
+      <div class="app-nav-item" data-panel="transporte"><span class="ico">▣</span><span data-i18n="sb_transports">Transporte</span></div>
+      <div class="app-nav-item" data-panel="nachrichten"><span class="ico">✉</span><span data-i18n="sb_messages">Nachrichten</span></div>
+      <div class="app-nav-item" data-panel="dokumente"><span class="ico">▱</span><span data-i18n="sb_documents">Dokumente</span></div>
+      <div class="app-nav-item" data-panel="abrechnung"><span class="ico">€</span><span data-i18n="sb_billing">Abrechnung</span></div>
+      <div class="app-nav-item" data-panel="einstellungen"><span class="ico">⚙</span><span data-i18n="sb_settings">Einstellungen</span></div>
     </nav>
     <div class="app-sidebar-foot">
       <button class="app-logout" onclick="exitApp()" data-i18n="app_logout">Abmelden</button>
@@ -848,6 +1093,17 @@
   </aside>
 
   <main class="app-main">
+    <div class="portal-header" aria-label="Portal-Kopfzeile">
+      <div class="portal-search"><input id="portal-global-search" type="search" placeholder="Suche nach Anfragen, Angeboten, Strecken …" aria-label="Portal durchsuchen"></div>
+      <div class="portal-header-actions">
+        <button class="portal-icon-btn" type="button" title="Benachrichtigungen" aria-label="Benachrichtigungen">♡</button>
+        <button class="portal-icon-btn" type="button" title="Nachrichten" aria-label="Nachrichten" onclick="switchAppPanel('nachrichten')">✉</button>
+        <div class="portal-account">
+          <div class="portal-account-copy"><strong id="portal-company-name">TRASSA Nutzer</strong><small id="portal-company-role">Unternehmen</small></div>
+          <div class="portal-avatar" id="portal-avatar">TR</div>
+        </div>
+      </div>
+    </div>
     <!-- Dashboard panel -->
     <div class="app-panel" id="panel-dashboard">
       <div class="app-topbar">
@@ -863,14 +1119,15 @@
         </div>
       </div>
 
-      <div class="kpi-grid">
-        <div class="kpi-card"><div class="num">18</div><div class="lbl" data-i18n="dash_stat1">Offene Anfragen in Ihrer Region</div></div>
-        <div class="kpi-card"><div class="num">6</div><div class="lbl" data-i18n="dash_stat2">Laufende Transporte</div></div>
-        <div class="kpi-card"><div class="num">4</div><div class="lbl" data-i18n="dash_stat3">Neue Angebote heute</div></div>
-        <div class="kpi-card"><div class="num">3</div><div class="lbl" data-i18n="dash_stat4">Ungelesene Nachrichten</div></div>
+      <div class="kpi-grid dashboard-kpis">
+        <div class="kpi-card" data-kpi="requests"><div class="kpi-icon">▤</div><div class="kpi-title">Offene Anfragen</div><div class="num">18</div><div class="lbl" data-i18n="dash_stat1">Offene Anfragen in Ihrer Region</div><button onclick="switchAppPanel('anfragen')">Anzeigen →</button></div>
+        <div class="kpi-card" data-kpi="offers"><div class="kpi-icon">◇</div><div class="kpi-title">Neue Angebote</div><div class="num">4</div><div class="lbl" data-i18n="dash_stat3">Neue Angebote heute</div><button onclick="switchAppPanel('angebote')">Anzeigen →</button></div>
+        <div class="kpi-card" data-kpi="transports"><div class="kpi-icon">▣</div><div class="kpi-title">Aktive Transporte</div><div class="num">6</div><div class="lbl" data-i18n="dash_stat2">Laufende Transporte</div><button onclick="switchAppPanel('transporte')">Anzeigen →</button></div>
+        <div class="kpi-card" data-kpi="messages"><div class="kpi-icon">✉</div><div class="kpi-title">Nachrichten</div><div class="num">3</div><div class="lbl" data-i18n="dash_stat4">Ungelesene Nachrichten</div><button onclick="switchAppPanel('nachrichten')">Anzeigen →</button></div>
+        <div class="kpi-card" data-kpi="rating"><div class="kpi-icon">★</div><div class="kpi-title">Bewertung</div><div class="num rating-num">4.8 <span>/ 5</span></div><div class="lbl">Basierend auf Ihren Bewertungen</div><button onclick="switchAppPanel('einstellungen')">Profil →</button></div>
       </div>
 
-      <div class="dash-cols">
+      <div class="dash-cols dashboard-primary">
         <div class="panel">
           <div class="panel-head">
             <h3 data-i18n="dash_recent_h3">Neueste Anfragen</h3>
@@ -887,9 +1144,25 @@
         </div>
       </div>
 
-      <div class="quick-actions">
-        <a class="btn btn-primary" href="#" onclick="openNewRequest();return false;" data-i18n="dash_qa_new">+ Neue Anfrage erstellen</a>
-        <a class="btn btn-ghost" href="#" onclick="switchAppPanel('marktplatz');return false;" data-i18n="dash_qa_market">Marktplatz durchsuchen</a>
+      <div class="dashboard-bottom-grid">
+        <section class="dashboard-box">
+          <div class="dashboard-box-head"><h3>Schnellaktionen</h3></div>
+          <div class="action-tiles">
+            <button onclick="openNewRequest()"><span>＋</span>Neue Anfrage</button>
+            <button onclick="switchAppPanel('transporte')"><span>▣</span>Transporte</button>
+            <button onclick="switchAppPanel('marktplatz')"><span>⌕</span>Marktplatz</button>
+            <button onclick="switchAppPanel('nachrichten')"><span>✉</span>Nachricht</button>
+            <button onclick="switchAppPanel('dokumente')"><span>⇧</span>Dokument</button>
+            <button onclick="switchAppPanel('abrechnung')"><span>€</span>Abrechnung</button>
+          </div>
+        </section>
+        <section class="dashboard-box useful-links">
+          <div class="dashboard-box-head"><h3>Nützliche Links</h3></div>
+          <button onclick="switchAppPanel('marktplatz')">⌕ TRASSA Marktplatz <b>›</b></button>
+          <button onclick="switchAppPanel('dokumente')">▤ Dokumente & Verträge <b>›</b></button>
+          <button onclick="switchAppPanel('einstellungen')">⚙ Unternehmensprofil <b>›</b></button>
+          <button onclick="switchAppPanel('nachrichten')">? Kontakt & Support <b>›</b></button>
+        </section>
       </div>
     </div>
 
@@ -1264,11 +1537,11 @@ const translations = {
     dash_qa_new:"+ Neue Anfrage erstellen", dash_qa_market:"Marktplatz durchsuchen",
     app_ph_p:"Diese Ansicht ist Teil des vollständigen Prototyps und wird im nächsten Ausbauschritt umgesetzt.",
     activity:[
-      {ico:"💼", text:"Neues Angebot erhalten von Kranunternehmen Voss", time:"vor 12 Min."},
-      {ico:"💬", text:"Neue Nachricht von TransAlp Logistik", time:"vor 1 Std."},
+      {ico:"◇", text:"Neues Angebot erhalten von Kranunternehmen Voss", time:"vor 12 Min."},
+      {ico:"✉", text:"Neue Nachricht von TransAlp Logistik", time:"vor 1 Std."},
       {ico:"⭐", text:"Neue Bewertung erhalten (5/5) von Nordkran GmbH", time:"gestern"},
-      {ico:"🚂", text:"Transport Köln → Hannover gestartet", time:"gestern"},
-      {ico:"📋", text:"Anfrage #TR-4476 wurde veröffentlicht", time:"vor 2 Tagen"}
+      {ico:"▣", text:"Transport Köln → Hannover gestartet", time:"gestern"},
+      {ico:"▤", text:"Anfrage #TR-4476 wurde veröffentlicht", time:"vor 2 Tagen"}
     ],
 
     p_market_h1:"Marktplatz", p_market_p:"Alle offenen Anfragen im Netzwerk durchsuchen.",
@@ -1401,7 +1674,7 @@ const translations = {
       {nr:"RM-2026-0708", typ:"Hervorgehobene Ausschreibung", amount:"49 €", date:"08.07.2026", status:"open"}
     ],
     billStats:[
-      {label:"Provision YTD", value:"123 €", sub:"Aus angenommenen Angeboten", accent:true, ico:"📋"},
+      {label:"Provision YTD", value:"123 €", sub:"Aus angenommenen Angeboten", accent:true, ico:"▤"},
       {label:"Mitgliedschaft", value:"Pro", sub:"249 €/Monat", accent:false, ico:"💳"},
       {label:"Offene Rechnungen", value:"1", sub:"fällig laufend", accent:false, ico:"✅"},
       {label:"Erfolgsquote", value:"50 %", sub:"Angenommen / Anfragen", accent:true, ico:"📈"}
@@ -1491,11 +1764,11 @@ const translations = {
     dash_qa_new:"+ Create new request", dash_qa_market:"Browse marketplace",
     app_ph_p:"This view is part of the full prototype and will be built out in the next stage.",
     activity:[
-      {ico:"💼", text:"New offer received from Voss Crane Co.", time:"12 min ago"},
-      {ico:"💬", text:"New message from TransAlp Logistik", time:"1 hr ago"},
+      {ico:"◇", text:"New offer received from Voss Crane Co.", time:"12 min ago"},
+      {ico:"✉", text:"New message from TransAlp Logistik", time:"1 hr ago"},
       {ico:"⭐", text:"New rating received (5/5) from Nordkran GmbH", time:"yesterday"},
-      {ico:"🚂", text:"Transport Cologne → Hanover started", time:"yesterday"},
-      {ico:"📋", text:"Request #TR-4476 was published", time:"2 days ago"}
+      {ico:"▣", text:"Transport Cologne → Hanover started", time:"yesterday"},
+      {ico:"▤", text:"Request #TR-4476 was published", time:"2 days ago"}
     ],
 
     p_market_h1:"Marketplace", p_market_p:"Browse all open requests across the network.",
@@ -1628,7 +1901,7 @@ const translations = {
       {nr:"RM-2026-0708", typ:"Featured listing", amount:"€49", date:"08 Jul 2026", status:"open"}
     ],
     billStats:[
-      {label:"Commission YTD", value:"€123", sub:"From accepted offers", accent:true, ico:"📋"},
+      {label:"Commission YTD", value:"€123", sub:"From accepted offers", accent:true, ico:"▤"},
       {label:"Membership", value:"Pro", sub:"€249/month", accent:false, ico:"💳"},
       {label:"Open invoices", value:"1", sub:"due soon", accent:false, ico:"✅"},
       {label:"Success rate", value:"50%", sub:"Accepted / requests", accent:true, ico:"📈"}

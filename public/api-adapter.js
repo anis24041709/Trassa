@@ -111,3 +111,42 @@ window.addEventListener('load', () => {
     });
   }
 });
+
+/* ---------- Light portal shell helpers ---------- */
+(function initLightPortalShell(){
+  function syncPortalIdentity(){
+    try{
+      const user = window.trassaUser || null;
+      const company = user?.company?.name || user?.company_name || user?.name || document.getElementById('app-company')?.textContent?.replace(/^\s*[·—-]?\s*/, '') || 'TRASSA Nutzer';
+      const role = user?.company?.role || user?.role || user?.company_role || 'Unternehmen';
+      const companyEl = document.getElementById('portal-company-name');
+      const roleEl = document.getElementById('portal-company-role');
+      const avatarEl = document.getElementById('portal-avatar');
+      if(companyEl) companyEl.textContent = company || 'TRASSA Nutzer';
+      if(roleEl) roleEl.textContent = role || 'Unternehmen';
+      if(avatarEl){
+        const initials = String(company || 'TR').split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase();
+        avatarEl.textContent = initials || 'TR';
+      }
+    }catch(_){ }
+  }
+
+  document.addEventListener('DOMContentLoaded', ()=>{
+    const search = document.getElementById('portal-global-search');
+    if(search){
+      search.addEventListener('keydown', (e)=>{
+        if(e.key !== 'Enter') return;
+        const q = search.value.trim();
+        if(!q) return;
+        try{
+          switchAppPanel('marktplatz');
+          const marketSearch = document.getElementById('m-f-search');
+          if(marketSearch){ marketSearch.value = q; marketSearch.dispatchEvent(new Event('input',{bubbles:true})); }
+        }catch(_){ }
+      });
+    }
+    syncPortalIdentity();
+    setTimeout(syncPortalIdentity, 700);
+    setTimeout(syncPortalIdentity, 1800);
+  });
+})();

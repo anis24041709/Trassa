@@ -1,3 +1,11 @@
+## V4.3 – Logo Fix
+
+Das TRASSA-Symbol ist jetzt als eingebettetes SVG integriert und benötigt keine externe Bilddatei.
+
+# TRASSA Portal V4.2 – Light Dashboard
+
+Diese Version verfeinert das helle Portal-Design mit 5 KPI-Karten, neuer Sidebar-Optik, Schnellaktionen, nützlichen Links und einem Dashboard näher am freigegebenen Designkonzept. Backend, PostgreSQL-Anbindung und Admin-Funktionen bleiben erhalten.
+
 # TRASSA Portal 2.0 – produktionsnahes Backend
 
 Dieses Projekt verbindet den TRASSA-Portal-Client mit einem echten Express/PostgreSQL-Backend. Der Client deckt Marktplatz, Anfragen, Angebote, Transporte, Nachrichten, Dokumente, Abrechnung und Einstellungen ab; diese Daten werden serverseitig gespeichert.
@@ -75,3 +83,7 @@ ADMIN_PASSWORD=ein-sehr-sicheres-passwort-mit-mindestens-10-zeichen
 Beim Start legt der Server diesen Administrator an oder aktualisiert das vorhandene Konto mit derselben E-Mail. Danach kann der Admin unter `/admin` anmelden.
 
 Der Admin-Bereich enthält Dashboard-Kennzahlen, Unternehmen/Verifizierung, Benutzer-Sperren und Admin-Rechte, Anfragen, Angebote, Transporte, Rechnungen und Audit-Log.
+
+
+## V4.1 Complete Light Theme
+Das helle Design ist jetzt direkt in `public/index.html` und `trassa-portal-connected.html` eingebettet. Dadurch ist es sowohl auf Render als auch beim lokalen Öffnen sichtbar. Startseite, Login/Registrierung, Portal und Admin sind hell gestaltet.
