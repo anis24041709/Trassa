@@ -51,7 +51,7 @@ async function trassaLoadDashboard(){
   try{const d=await api('/dashboard');
     const k=document.querySelectorAll('#panel-dashboard .kpi-card .num'); [d.kpi.open,d.kpi.transports,d.kpi.offers,d.kpi.messages].forEach((v,i)=>{if(k[i])k[i].textContent=v});
     const t=translations[lang]; const labels=lang==='de'?{gewicht:'Gewicht',zeit:'Zeitraum',spur:'Spurweite'}:{gewicht:'Weight',zeit:'Timeframe',spur:'Gauge'};
-    document.getElementById('dash-req-list').innerHTML=(d.requests||[]).slice(0,3).map(r=>`<div class="req-row"><div><div class="r-route">${esc(r.route)}</div><div class="r-sub">#TR-${r.public_id}</div></div><div class="r-field"><span class="k">${labels.zeit}</span>${esc(r.zeit||'—')}</div><div class="r-field"><span class="k">${labels.gewicht}</span>${esc(r.gewicht||'—')}</div><div class="r-field"><span class="k">${labels.spur}</span>—</div><div class="req-badge ${r.gefahr?'gefahr':''}">${r.gefahr?'Gefahrgut':'Offen'}</div></div>`).join('');
+    document.getElementById('dash-req-list').innerHTML=(d.requests||[]).slice(0,3).map(r=>`<div class="req-row dashboard-request-row" role="button" tabindex="0" data-request-id="${esc(r.id)}" onclick="window.openDashboardRequestDetail(this.dataset.requestId)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.openDashboardRequestDetail(this.dataset.requestId)}"><div><div class="r-route">${esc(r.route)}</div><div class="r-sub">#TR-${r.public_id}</div></div><div class="r-field"><span class="k">${labels.zeit}</span>${esc(r.zeit||'—')}</div><div class="r-field"><span class="k">${labels.gewicht}</span>${esc(r.gewicht||'—')}</div><div class="r-field"><span class="k">${labels.spur}</span>—</div><div class="req-badge ${r.gefahr?'gefahr':''}">${r.gefahr?'Gefahrgut':'Offen'}</div></div>`).join('');
     document.getElementById('dash-activity-list').innerHTML=(d.activity||[]).map(a=>`<div class="activity-item"><div class="ico">${esc(a.icon)}</div><div><div class="txt">${esc(a.text)}</div><div class="time">${new Date(a.created_at).toLocaleString(lang==='de'?'de-DE':'en-GB')}</div></div></div>`).join('');
   }catch(e){console.error(e)}
 }
@@ -130,26 +130,35 @@ function renderRealRequestDetail(r){
     ? `<button type="button" class="btn btn-primary" onclick="switchAppPanel('angebote')">${esc(labels.showOffers)} (${offers})</button>`
     : `<span class="status-badge ${statusClass[r.status]||'grey'}">${esc(requestStatusLabel(r.status))}</span>`;
 }
-async function openRequestDetail(index){
-  currentRequestIndex=index;
-  const listRow=trassaRequests[index];
-  if(!listRow) return;
+async function openRequestDetailById(requestId, fallback=null){
+  if(!requestId) return;
   try{
-    // Fetch the selected row again by database UUID so the detail screen always
-    // uses the authoritative PostgreSQL record, not any legacy demo array.
-    const out=await api('/requests/'+encodeURIComponent(listRow.id));
-    const r=out.request || listRow;
+    const out=await api('/requests/'+encodeURIComponent(requestId));
+    const r=out.request || fallback;
+    if(!r) return;
     window.__trassaCurrentRequest=r;
     await switchAppPanel('anfrage-detail');
     renderRealRequestDetail(r);
   }catch(e){
-    window.__trassaCurrentRequest=listRow;
-    await switchAppPanel('anfrage-detail');
-    renderRealRequestDetail(listRow);
+    if(fallback){
+      window.__trassaCurrentRequest=fallback;
+      await switchAppPanel('anfrage-detail');
+      renderRealRequestDetail(fallback);
+    }
     apiToast(e.message);
   }
 }
+async function openRequestDetail(index){
+  currentRequestIndex=index;
+  const listRow=trassaRequests[index];
+  if(!listRow) return;
+  await openRequestDetailById(listRow.id, listRow);
+}
+async function openDashboardRequestDetail(requestId){
+  await openRequestDetailById(requestId, null);
+}
 window.openRequestDetail=openRequestDetail;
+window.openDashboardRequestDetail=openDashboardRequestDetail;
 window.renderRealRequestDetail=renderRealRequestDetail;
 
 async function renderMarketRequests(){
