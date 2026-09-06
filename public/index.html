@@ -2168,13 +2168,14 @@ document.addEventListener('keydown', (e)=>{
 
 /* ---------------- app shell (logged-in area) ---------------- */
 function enterApp(companyName){
-  const display = companyName || 'Rheinbahn Cargo';
-  document.getElementById('app-company').textContent = ', ' + display;
+  const display = companyName || '';
+  document.getElementById('app-company').textContent = display ? (', ' + display) : '';
   document.getElementById('app-btn-de').classList.toggle('active', lang==='de');
   document.getElementById('app-btn-en').classList.toggle('active', lang==='en');
   document.body.classList.add('app-mode');
   switchAppPanel('dashboard');
   window.scrollTo(0,0);
+  if(typeof window.syncPortalIdentity==='function') window.syncPortalIdentity();
 }
 
 function exitApp(){

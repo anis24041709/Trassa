@@ -53,6 +53,7 @@ async function submitAuth(event, mode){
       window.trassaUser=trassaUser;
       closeAuth();
       enterApp(trassaUser.company?.name||'');
+      if(typeof window.syncPortalIdentity==='function') window.syncPortalIdentity();
       await trassaLoadDashboard();
     }else{
       const first_name=document.getElementById('reg-first-name')?.value.trim()
@@ -77,6 +78,7 @@ async function submitAuth(event, mode){
       window.trassaUser=trassaUser;
       closeAuth();
       enterApp(trassaUser.company?.name||company);
+      if(typeof window.syncPortalIdentity==='function') window.syncPortalIdentity();
       await trassaLoadDashboard();
       if(out.emailVerificationSent===false){
         apiToast('Konto angelegt. (E-Mail-Bestätigung übersprungen – SMTP nicht konfiguriert.)');
@@ -115,6 +117,7 @@ async function trassaBoot(){
       trassaUser=meOut.user;
       window.trassaUser=trassaUser;
       enterApp(trassaUser.company?.name||trassaUser.name||'');
+      if(typeof window.syncPortalIdentity==='function') window.syncPortalIdentity();
       await trassaLoadDashboard();
     }
   }catch{ /* öffentliche Startseite */ }
@@ -602,22 +605,38 @@ window.addEventListener('load', () => {
 
 /* ---------- Light portal shell helpers ---------- */
 (function initLightPortalShell(){
+  function displayUserName(user){
+    if(!user) return 'TRASSA Nutzer';
+    const full = [user.first_name, user.last_name].filter(Boolean).join(' ').trim();
+    if(full) return full;
+    if(user.company?.contact_name) return user.company.contact_name;
+    if(user.company?.name) return user.company.name;
+    if(user.name) return user.name;
+    if(user.email) return user.email.split('@')[0];
+    return 'TRASSA Nutzer';
+  }
+
   function syncPortalIdentity(){
     try{
       const user = window.trassaUser || null;
-      const company = user?.company?.name || user?.company_name || user?.name || document.getElementById('app-company')?.textContent?.replace(/^\s*[·—-]?\s*/, '') || 'TRASSA Nutzer';
+      const displayName = displayUserName(user);
       const role = user?.company?.role || user?.role || user?.company_role || 'Unternehmen';
       const companyEl = document.getElementById('portal-company-name');
       const roleEl = document.getElementById('portal-company-role');
       const avatarEl = document.getElementById('portal-avatar');
-      if(companyEl) companyEl.textContent = company || 'TRASSA Nutzer';
+      if(companyEl) companyEl.textContent = displayName;
       if(roleEl) roleEl.textContent = role || 'Unternehmen';
       if(avatarEl){
-        const initials = String(company || 'TR').split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase();
-        avatarEl.textContent = initials || 'TR';
+        const parts = displayName.split(/\s+/).filter(Boolean);
+        let initials = '';
+        if(parts.length >= 2) initials = (parts[0][0] + parts[1][0]).toUpperCase();
+        else if(parts.length === 1) initials = parts[0].slice(0,2).toUpperCase();
+        else initials = 'TR';
+        avatarEl.textContent = initials;
       }
     }catch(_){ }
   }
+  window.syncPortalIdentity = syncPortalIdentity;
 
   document.addEventListener('DOMContentLoaded', ()=>{
     const search = document.getElementById('portal-global-search');
