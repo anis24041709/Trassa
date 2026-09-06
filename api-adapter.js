@@ -51,7 +51,7 @@ async function trassaLoadDashboard(){
   try{const d=await api('/dashboard');
     const k=document.querySelectorAll('#panel-dashboard .kpi-card .num'); [d.kpi.open,d.kpi.transports,d.kpi.offers,d.kpi.messages].forEach((v,i)=>{if(k[i])k[i].textContent=v});
     const t=translations[lang]; const labels=lang==='de'?{gewicht:'Gewicht',zeit:'Zeitraum',spur:'Spurweite'}:{gewicht:'Weight',zeit:'Timeframe',spur:'Gauge'};
-    document.getElementById('dash-req-list').innerHTML=(d.requests||[]).slice(0,3).map(r=>`<div class="req-row"><div><div class="r-route">${esc(r.route)}</div><div class="r-sub">#TR-${r.public_id}</div></div><div class="r-field"><span class="k">${labels.zeit}</span>${esc(r.zeit||'—')}</div><div class="r-field"><span class="k">${labels.gewicht}</span>${esc(r.gewicht||'—')}</div><div class="r-field"><span class="k">${labels.spur}</span>—</div><div class="req-badge ${r.gefahr?'gefahr':''}">${r.gefahr?'Gefahrgut':'Offen'}</div></div>`).join('');
+    document.getElementById('dash-req-list').innerHTML=(d.requests||[]).slice(0,3).map(r=>`<div class="req-row dashboard-request-row" role="button" tabindex="0" data-request-id="${esc(r.id)}" onclick="window.openDashboardRequestDetail(this.dataset.requestId)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.openDashboardRequestDetail(this.dataset.requestId)}"><div><div class="r-route">${esc(r.route)}</div><div class="r-sub">#TR-${r.public_id}</div></div><div class="r-field"><span class="k">${labels.zeit}</span>${esc(r.zeit||'—')}</div><div class="r-field"><span class="k">${labels.gewicht}</span>${esc(r.gewicht||'—')}</div><div class="r-field"><span class="k">${labels.spur}</span>—</div><div class="req-badge ${r.gefahr?'gefahr':''}">${r.gefahr?'Gefahrgut':'Offen'}</div></div>`).join('');
     document.getElementById('dash-activity-list').innerHTML=(d.activity||[]).map(a=>`<div class="activity-item"><div class="ico">${esc(a.icon)}</div><div><div class="txt">${esc(a.text)}</div><div class="time">${new Date(a.created_at).toLocaleString(lang==='de'?'de-DE':'en-GB')}</div></div></div>`).join('');
   }catch(e){console.error(e)}
 }
@@ -130,30 +130,102 @@ function renderRealRequestDetail(r){
     ? `<button type="button" class="btn btn-primary" onclick="switchAppPanel('angebote')">${esc(labels.showOffers)} (${offers})</button>`
     : `<span class="status-badge ${statusClass[r.status]||'grey'}">${esc(requestStatusLabel(r.status))}</span>`;
 }
-async function openRequestDetail(index){
-  currentRequestIndex=index;
-  const listRow=trassaRequests[index];
-  if(!listRow) return;
+async function openRequestDetailById(requestId, fallback=null){
+  if(!requestId) return;
   try{
-    // Fetch the selected row again by database UUID so the detail screen always
-    // uses the authoritative PostgreSQL record, not any legacy demo array.
-    const out=await api('/requests/'+encodeURIComponent(listRow.id));
-    const r=out.request || listRow;
+    const out=await api('/requests/'+encodeURIComponent(requestId));
+    const r=out.request || fallback;
+    if(!r) return;
     window.__trassaCurrentRequest=r;
     await switchAppPanel('anfrage-detail');
     renderRealRequestDetail(r);
   }catch(e){
-    window.__trassaCurrentRequest=listRow;
-    await switchAppPanel('anfrage-detail');
-    renderRealRequestDetail(listRow);
+    if(fallback){
+      window.__trassaCurrentRequest=fallback;
+      await switchAppPanel('anfrage-detail');
+      renderRealRequestDetail(fallback);
+    }
     apiToast(e.message);
   }
 }
+async function openRequestDetail(index){
+  currentRequestIndex=index;
+  const listRow=trassaRequests[index];
+  if(!listRow) return;
+  await openRequestDetailById(listRow.id, listRow);
+}
+async function openDashboardRequestDetail(requestId){
+  await openRequestDetailById(requestId, null);
+}
 window.openRequestDetail=openRequestDetail;
+window.openDashboardRequestDetail=openDashboardRequestDetail;
 window.renderRealRequestDetail=renderRealRequestDetail;
 
+function renderMarketplaceActions(r){
+  if(!r || !trassaUser || r.company_id===trassaUser.company?.id || !['new','progress'].includes(r.status)) return;
+  const actions=document.getElementById('req-detail-actions');
+  if(!actions) return;
+  actions.innerHTML=`
+    <div style="width:100%;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start;">
+      <form onsubmit="return submitMarketplaceOffer(event,'${esc(r.id)}')" class="panel" style="padding:18px;">
+        <h3 style="margin:0 0 14px;">Angebot abgeben</h3>
+        <div class="field"><label>Preis (€)</label><input id="market-offer-price" type="number" min="0" step="0.01" required placeholder="z. B. 12500,00"></div>
+        <div class="field"><label>Gültig bis</label><input id="market-offer-valid" type="date"></div>
+        <div class="field"><label>Ansprechpartner</label><input id="market-offer-contact" type="text" maxlength="200" placeholder="Name"></div>
+        <div class="field"><label>Hinweis / Konditionen</label><textarea id="market-offer-note" maxlength="5000" placeholder="Details zum Angebot"></textarea></div>
+        <button class="btn btn-primary" type="submit">Angebot senden</button>
+      </form>
+      <form onsubmit="return sendMarketplaceMessage(event,'${esc(r.id)}','${esc(r.company_id)}')" class="panel" style="padding:18px;">
+        <h3 style="margin:0 0 14px;">Nachricht schreiben</h3>
+        <p style="margin:0 0 12px;color:var(--text-dim);font-size:13px;">Direkt zum Auftraggeber dieser Anfrage.</p>
+        <div class="field"><label>Nachricht</label><textarea id="market-message-body" required maxlength="5000" placeholder="Ihre Nachricht …" style="min-height:150px;"></textarea></div>
+        <button class="btn btn-primary" type="submit">Nachricht senden</button>
+      </form>
+    </div>`;
+}
+async function submitMarketplaceOffer(event,requestId){
+  event.preventDefault();
+  const price=Number(document.getElementById('market-offer-price')?.value||0);
+  if(!Number.isFinite(price)||price<0){apiToast('Bitte einen gültigen Preis eingeben.');return false;}
+  try{
+    await api('/requests/'+encodeURIComponent(requestId)+'/offers',{method:'POST',body:JSON.stringify({
+      price_cents:Math.round(price*100),
+      valid_until:document.getElementById('market-offer-valid')?.value||'',
+      contact_name:document.getElementById('market-offer-contact')?.value.trim()||'',
+      note:document.getElementById('market-offer-note')?.value.trim()||''
+    })});
+    apiToast('Angebot wurde gesendet.');
+    await openMarketplaceRequest(requestId);
+  }catch(e){apiToast(e.message)}
+  return false;
+}
+async function sendMarketplaceMessage(event,requestId,ownerCompanyId){
+  event.preventDefault();
+  const body=document.getElementById('market-message-body')?.value.trim()||'';
+  if(!body){apiToast('Bitte eine Nachricht eingeben.');return false;}
+  try{
+    const c=await api('/conversations',{method:'POST',body:JSON.stringify({request_id:requestId,company_id:ownerCompanyId})});
+    await api('/conversations/'+encodeURIComponent(c.conversation.id)+'/messages',{method:'POST',body:JSON.stringify({body})});
+    apiToast('Nachricht wurde gesendet.');
+    document.getElementById('market-message-body').value='';
+  }catch(e){apiToast(e.message)}
+  return false;
+}
+async function openMarketplaceRequest(requestId){
+  await openRequestDetailById(requestId,null);
+  renderMarketplaceActions(window.__trassaCurrentRequest);
+}
+window.openMarketplaceRequest=openMarketplaceRequest;
+window.submitMarketplaceOffer=submitMarketplaceOffer;
+window.sendMarketplaceMessage=sendMarketplaceMessage;
+
 async function renderMarketRequests(){
-  try{const q=document.getElementById('m-f-search')?.value.trim()||'';const out=await api('/requests'+(q?'?q='+encodeURIComponent(q):''));const list=out.requests||[];document.getElementById('m-req-list').innerHTML=list.map(r=>`<div class="req-row"><div><div class="r-route">${esc(r.route)}</div><div class="r-sub">#TR-${r.public_id} · ${esc(r.title)}</div></div><div class="r-field"><span class="k">Zeitraum</span>${esc(r.zeit||'—')}</div><div class="r-field"><span class="k">Gewicht</span>${esc(r.gewicht||'—')}</div><div class="r-field"><span class="k">Wagenart</span>${esc(r.wagon_type||'—')}</div><div class="req-badge ${r.gefahr?'gefahr':''}">${r.gefahr?'Gefahrgut':'Offen'}</div></div>`).join('')||'<div class="no-results">Keine Anfragen gefunden.</div>';}catch(e){apiToast(e.message)}
+  try{
+    const q=document.getElementById('m-f-search')?.value.trim()||'';
+    const out=await api('/requests'+(q?'?q='+encodeURIComponent(q):''));
+    const list=out.requests||[];
+    document.getElementById('m-req-list').innerHTML=list.map(r=>`<div class="req-row clickable" role="button" tabindex="0" onclick="openMarketplaceRequest('${esc(r.id)}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openMarketplaceRequest('${esc(r.id)}')}"><div><div class="r-route">${esc(r.route)}</div><div class="r-sub">#TR-${r.public_id} · ${esc(r.title)}</div></div><div class="r-field"><span class="k">Zeitraum</span>${esc((r.from_date||r.to_date)?`${r.from_date?formatDateDMY(r.from_date):'—'} – ${r.to_date?formatDateDMY(r.to_date):'—'}`:(r.zeit||'—'))}</div><div class="r-field"><span class="k">Gewicht</span>${esc(r.gewicht||'—')}</div><div class="r-field"><span class="k">Wagenart</span>${esc(requestDisplayValue(r.wagon_type))}</div><div class="req-badge ${r.gefahr?'gefahr':''}">${r.gefahr?'Gefahrgut':'Offen'}</div></div>`).join('')||'<div class="no-results">Keine Anfragen gefunden.</div>';
+  }catch(e){apiToast(e.message)}
 }
 function populateMarketFilters(){}
 
@@ -161,7 +233,75 @@ async function renderOffers(){
   try{const out=await api('/offers');trassaOffers=out.offers||[];document.getElementById('offers-list').innerHTML=trassaOffers.map((o,i)=>`<div class="list-row clickable" onclick="openOfferDetail(${i})"><div><div class="l-main">${esc(o.route)}</div><div class="l-sub">${esc(o.partner)}</div></div><div class="l-field"><span class="k">Datum</span>${new Date(o.created_at||o.date).toLocaleDateString(lang==='de'?'de-DE':'en-GB')}</div><div class="l-field"><span class="k">Preis</span>${esc(o.price)}</div>${o.status==='pending'&&o.request_company===trassaUser?.company?.id?`<div style="display:flex;gap:8px;"><button type="button" class="btn btn-primary" onclick="event.stopPropagation();offerAction(${i},'accepted')">Annehmen</button><button type="button" class="btn btn-ghost" onclick="event.stopPropagation();offerAction(${i},'declined')">Ablehnen</button></div>`:`<div class="status-badge ${statusClass[o.status]||'grey'}">${esc(o.status)}</div>`}</div>`).join('')||'<div class="no-results">Keine Angebote vorhanden.</div>';}catch(e){apiToast(e.message)}
 }
 async function offerAction(index,newStatus){try{await api('/offers/'+trassaOffers[index].id,{method:'PATCH',body:JSON.stringify({status:newStatus})});apiToast(newStatus==='accepted'?'Angebot angenommen.':'Angebot abgelehnt.');await renderOffers();await trassaLoadDashboard();}catch(e){apiToast(e.message)}}
-async function openOfferDetail(index){currentOfferIndex=index;const o=trassaOffers[index];if(!o)return;document.getElementById('offer-detail-h1').textContent=o.route;document.getElementById('offer-detail-sub').textContent=o.partner;document.getElementById('offer-detail-grid').innerHTML=[['Strecke',o.route],['Anbieter',o.partner],['Preis',o.price],['Eingegangen am',new Date(o.created_at||o.date).toLocaleDateString(lang==='de'?'de-DE':'en-GB')],['Ansprechpartner',o.contact||'—'],['Gültig bis',o.validUntil||'—'],['Status',o.status]].map(([k,v])=>`<div class="detail-item"><span class="k">${esc(k)}</span><div class="v">${esc(v)}</div></div>`).join('');document.getElementById('offer-detail-note').textContent=o.note||'—';document.getElementById('offer-detail-actions').innerHTML=o.status==='pending'?`<button type="button" class="btn btn-primary" onclick="offerAction(${index},'accepted')">Annehmen</button><button type="button" class="btn btn-ghost" onclick="offerAction(${index},'declined')">Ablehnen</button>`:`<span class="status-badge ${statusClass[o.status]||'grey'}">${esc(o.status)}</span>`;switchAppPanel('angebot-detail')}
+async function openOfferDetail(index){
+  currentOfferIndex=index;
+  const o=trassaOffers[index];
+  if(!o)return;
+
+  // Wichtig: zuerst das Panel öffnen. Der alte Prototype-Renderer läuft beim
+  // Panelwechsel noch mit und würde sonst die echten API-Werte überschreiben.
+  switchAppPanel('angebot-detail');
+
+  const fmtDate=(v)=>{
+    if(!v)return '—';
+    const d=new Date(v);
+    return Number.isNaN(d.getTime())?String(v):d.toLocaleDateString(lang==='de'?'de-DE':'en-GB');
+  };
+  const statusLabels={pending:'Offen',accepted:'Angenommen',declined:'Abgelehnt',withdrawn:'Zurückgezogen'};
+  const isRequester=o.request_company===trassaUser?.company?.id;
+
+  document.getElementById('offer-detail-h1').textContent=o.route||'Angebot';
+  document.getElementById('offer-detail-sub').textContent=o.partner||'—';
+  const transportzeit=(o.from_date||o.to_date)
+    ? `${o.from_date?formatDateDMY(o.from_date):'—'} – ${o.to_date?formatDateDMY(o.to_date):'—'}`
+    : '—';
+  document.getElementById('offer-detail-grid').innerHTML=[
+    ['Strecke',o.route||'—'],
+    [isRequester?'Anbieter':'Auftraggeber',o.partner||'—'],
+    ['Transportzeit',transportzeit],
+    ['Preis',o.price||'—'],
+    ['Ansprechpartner',o.contact||o.contact_name||'—'],
+    ['Eingegangen am',fmtDate(o.created_at||o.date)],
+    ['Gültig bis',fmtDate(o.validUntil||o.valid_until)],
+    ['Status',statusLabels[o.status]||o.status||'—']
+  ].map(([k,v])=>`<div class="detail-item"><span class="k">${esc(k)}</span><div class="v">${esc(v)}</div></div>`).join('');
+  document.getElementById('offer-detail-note').textContent=o.note||'—';
+
+  const messageButton=`<button type="button" class="btn btn-primary" onclick="messageFromOffer(${index})">Nachricht schreiben</button>`;
+  const priceButton=!isRequester&&o.status==='pending'
+    ? `<button type="button" class="btn btn-ghost" onclick="adjustOfferPrice(${index})">Preis anpassen</button>` : '';
+  const decisionButtons=isRequester&&o.status==='pending'
+    ? `<button type="button" class="btn btn-ghost" onclick="offerAction(${index},'accepted')">Annehmen</button><button type="button" class="btn btn-ghost" onclick="offerAction(${index},'declined')">Ablehnen</button>` : '';
+  document.getElementById('offer-detail-actions').innerHTML=messageButton+priceButton+decisionButtons;
+}
+
+async function messageFromOffer(index){
+  const o=trassaOffers[index]; if(!o)return;
+  try{
+    const partnerCompanyId=o.request_company===trassaUser?.company?.id ? o.provider_company_id : o.request_company;
+    const out=await api('/conversations',{method:'POST',body:JSON.stringify({request_id:o.request_id,company_id:partnerCompanyId})});
+    await renderMessages();
+    switchAppPanel('nachrichten');
+    const i=trassaConversations.findIndex(c=>c.id===out.conversation?.id);
+    if(i>=0)await selectConversation(i);
+  }catch(e){apiToast(e.message)}
+}
+
+async function adjustOfferPrice(index){
+  const o=trassaOffers[index]; if(!o)return;
+  const current=Number(o.price_cents||0)/100;
+  const raw=window.prompt('Neuen Angebotspreis in EUR eingeben:', current?String(current.toFixed(2)).replace('.',','):'');
+  if(raw===null)return;
+  const value=Number(String(raw).replace(/\s/g,'').replace(',','.'));
+  if(!Number.isFinite(value)||value<0){apiToast('Bitte einen gültigen Preis eingeben.');return;}
+  try{
+    await api('/offers/'+o.id+'/price',{method:'PATCH',body:JSON.stringify({price_cents:Math.round(value*100)})});
+    apiToast('Preis wurde angepasst.');
+    await renderOffers();
+    const newIndex=trassaOffers.findIndex(x=>x.id===o.id);
+    if(newIndex>=0)await openOfferDetail(newIndex);
+  }catch(e){apiToast(e.message)}
+}
 
 async function renderTransports(){try{const out=await api('/transports');document.getElementById('transp-list').innerHTML=(out.transports||[]).map(tr=>`<div class="list-row cols-3"><div><div class="l-main">${esc(tr.route)}</div><div class="l-sub">${esc(tr.id)}</div></div><div class="l-field"><span class="k">Zeitraum</span>${esc(tr.zeit||'—')}</div><div class="status-badge ${statusClass[tr.status]||'grey'}">${esc(tr.status)}</div></div>`).join('')||'<div class="no-results">Keine Transporte vorhanden.</div>'}catch(e){apiToast(e.message)}}
 
