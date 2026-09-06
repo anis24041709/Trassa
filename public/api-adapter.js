@@ -233,7 +233,44 @@ async function renderOffers(){
   try{const out=await api('/offers');trassaOffers=out.offers||[];document.getElementById('offers-list').innerHTML=trassaOffers.map((o,i)=>`<div class="list-row clickable" onclick="openOfferDetail(${i})"><div><div class="l-main">${esc(o.route)}</div><div class="l-sub">${esc(o.partner)}</div></div><div class="l-field"><span class="k">Datum</span>${new Date(o.created_at||o.date).toLocaleDateString(lang==='de'?'de-DE':'en-GB')}</div><div class="l-field"><span class="k">Preis</span>${esc(o.price)}</div>${o.status==='pending'&&o.request_company===trassaUser?.company?.id?`<div style="display:flex;gap:8px;"><button type="button" class="btn btn-primary" onclick="event.stopPropagation();offerAction(${i},'accepted')">Annehmen</button><button type="button" class="btn btn-ghost" onclick="event.stopPropagation();offerAction(${i},'declined')">Ablehnen</button></div>`:`<div class="status-badge ${statusClass[o.status]||'grey'}">${esc(o.status)}</div>`}</div>`).join('')||'<div class="no-results">Keine Angebote vorhanden.</div>';}catch(e){apiToast(e.message)}
 }
 async function offerAction(index,newStatus){try{await api('/offers/'+trassaOffers[index].id,{method:'PATCH',body:JSON.stringify({status:newStatus})});apiToast(newStatus==='accepted'?'Angebot angenommen.':'Angebot abgelehnt.');await renderOffers();await trassaLoadDashboard();}catch(e){apiToast(e.message)}}
-async function openOfferDetail(index){currentOfferIndex=index;const o=trassaOffers[index];if(!o)return;document.getElementById('offer-detail-h1').textContent=o.route;document.getElementById('offer-detail-sub').textContent=o.partner;document.getElementById('offer-detail-grid').innerHTML=[['Strecke',o.route],['Anbieter',o.partner],['Preis',o.price],['Eingegangen am',new Date(o.created_at||o.date).toLocaleDateString(lang==='de'?'de-DE':'en-GB')],['Ansprechpartner',o.contact||'—'],['Gültig bis',o.validUntil||'—'],['Status',o.status]].map(([k,v])=>`<div class="detail-item"><span class="k">${esc(k)}</span><div class="v">${esc(v)}</div></div>`).join('');document.getElementById('offer-detail-note').textContent=o.note||'—';document.getElementById('offer-detail-actions').innerHTML=o.status==='pending'?`<button type="button" class="btn btn-primary" onclick="offerAction(${index},'accepted')">Annehmen</button><button type="button" class="btn btn-ghost" onclick="offerAction(${index},'declined')">Ablehnen</button>`:`<span class="status-badge ${statusClass[o.status]||'grey'}">${esc(o.status)}</span>`;switchAppPanel('angebot-detail')}
+async function openOfferDetail(index){
+  currentOfferIndex=index;
+  const o=trassaOffers[index];
+  if(!o)return;
+
+  // Wichtig: zuerst das Panel öffnen. Der alte Prototype-Renderer läuft beim
+  // Panelwechsel noch mit und würde sonst die echten API-Werte überschreiben.
+  switchAppPanel('angebot-detail');
+
+  const fmtDate=(v)=>{
+    if(!v)return '—';
+    const d=new Date(v);
+    return Number.isNaN(d.getTime())?String(v):d.toLocaleDateString(lang==='de'?'de-DE':'en-GB');
+  };
+  const statusLabels={pending:'Offen',accepted:'Angenommen',declined:'Abgelehnt',withdrawn:'Zurückgezogen'};
+  const isRequester=o.request_company===trassaUser?.company?.id;
+
+  document.getElementById('offer-detail-h1').textContent=o.route||'Angebot';
+  document.getElementById('offer-detail-sub').textContent=o.partner||'—';
+  document.getElementById('offer-detail-grid').innerHTML=[
+    ['Strecke',o.route||'—'],
+    [isRequester?'Anbieter':'Auftraggeber',o.partner||'—'],
+    ['Preis',o.price||'—'],
+    ['Eingegangen am',fmtDate(o.created_at||o.date)],
+    ['Ansprechpartner',o.contact||'—'],
+    ['Gültig bis',fmtDate(o.validUntil||o.valid_until)],
+    ['Status',statusLabels[o.status]||o.status||'—']
+  ].map(([k,v])=>`<div class="detail-item"><span class="k">${esc(k)}</span><div class="v">${esc(v)}</div></div>`).join('');
+  document.getElementById('offer-detail-note').textContent=o.note||'—';
+
+  if(o.status==='pending'&&isRequester){
+    document.getElementById('offer-detail-actions').innerHTML=`<button type="button" class="btn btn-primary" onclick="offerAction(${index},'accepted')">Annehmen</button><button type="button" class="btn btn-ghost" onclick="offerAction(${index},'declined')">Ablehnen</button>`;
+  }else if(o.status==='pending'){
+    document.getElementById('offer-detail-actions').innerHTML=`<span class="status-badge ${statusClass[o.status]||'grey'}">${esc(statusLabels[o.status]||o.status)}</span>`;
+  }else{
+    document.getElementById('offer-detail-actions').innerHTML=`<span class="status-badge ${statusClass[o.status]||'grey'}">${esc(statusLabels[o.status]||o.status)}</span>`;
+  }
+}
 
 async function renderTransports(){try{const out=await api('/transports');document.getElementById('transp-list').innerHTML=(out.transports||[]).map(tr=>`<div class="list-row cols-3"><div><div class="l-main">${esc(tr.route)}</div><div class="l-sub">${esc(tr.id)}</div></div><div class="l-field"><span class="k">Zeitraum</span>${esc(tr.zeit||'—')}</div><div class="status-badge ${statusClass[tr.status]||'grey'}">${esc(tr.status)}</div></div>`).join('')||'<div class="no-results">Keine Transporte vorhanden.</div>'}catch(e){apiToast(e.message)}}
 
