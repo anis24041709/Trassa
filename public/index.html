@@ -873,11 +873,11 @@ body.app-mode .app-sidebar .logo{font-size:24px!important;letter-spacing:0!impor
         </div>
         <div class="field">
           <label data-i18n="field_password">Passwort</label>
-          <input type="password" required data-i18n-ph="field_password_ph" placeholder="••••••••">
+          <input type="password" required autocomplete="current-password" data-i18n-ph="field_password_ph" placeholder="••••••••">
         </div>
         <button type="submit" class="btn btn-primary" data-i18n="login_submit">Einloggen</button>
       </form>
-      <div class="modal-msg" id="msg-login" data-i18n="login_msg">Demo: In der echten Version würden Sie jetzt eingeloggt.</div>
+      <div class="modal-msg" id="msg-login" data-i18n="login_msg">Fehler erscheinen hier.</div>
       <div class="modal-foot">
         <span data-i18n="login_no_account">Noch kein Konto?</span>
         <a onclick="switchAuth('register')" data-i18n="login_switch">Jetzt registrieren</a>
@@ -886,11 +886,18 @@ body.app-mode .app-sidebar .logo{font-size:24px!important;letter-spacing:0!impor
 
     <div id="pane-register" style="display:none;">
       <h3 data-i18n="register_h3">Konto erstellen</h3>
-      <p class="modal-sub" data-i18n="register_sub">Kostenlos registrieren und Zugang zum Marktplatz erhalten.</p>
       <form onsubmit="return submitAuth(event,'register')">
         <div class="field">
+          <label data-i18n="field_first_name">Vorname</label>
+          <input id="reg-first-name" type="text" required maxlength="100" autocomplete="given-name" data-i18n-ph="field_first_name_ph" placeholder="Max">
+        </div>
+        <div class="field">
+          <label data-i18n="field_last_name">Nachname</label>
+          <input id="reg-last-name" type="text" required maxlength="100" autocomplete="family-name" data-i18n-ph="field_last_name_ph" placeholder="Mustermann">
+        </div>
+        <div class="field">
           <label data-i18n="field_company">Unternehmen</label>
-          <input type="text" required data-i18n-ph="field_company_ph" placeholder="Musterbahn GmbH">
+          <input id="reg-company" type="text" required maxlength="200" autocomplete="organization" data-i18n-ph="field_company_ph" placeholder="Musterbahn GmbH">
         </div>
         <div class="field">
           <label data-i18n="field_role">Unternehmensart</label>
@@ -898,15 +905,19 @@ body.app-mode .app-sidebar .logo{font-size:24px!important;letter-spacing:0!impor
         </div>
         <div class="field">
           <label data-i18n="field_email">E-Mail-Adresse</label>
-          <input type="email" required data-i18n-ph="field_email_ph" placeholder="name@unternehmen.de">
+          <input id="reg-email" type="email" required autocomplete="email" data-i18n-ph="field_email_ph" placeholder="name@unternehmen.de">
         </div>
         <div class="field">
-          <label data-i18n="field_password">Passwort</label>
-          <input type="password" required data-i18n-ph="field_password_ph" placeholder="••••••••">
+          <label data-i18n="field_password">Passwort (mind. 10 Zeichen)</label>
+          <input id="reg-password" type="password" required minlength="10" autocomplete="new-password" data-i18n-ph="field_password_ph" placeholder="Mindestens 10 Zeichen">
+        </div>
+        <div class="field">
+          <label data-i18n="field_password_confirm">Passwort wiederholen</label>
+          <input id="reg-password-confirm" type="password" required minlength="10" autocomplete="new-password" data-i18n-ph="field_password_confirm_ph" placeholder="Passwort erneut eingeben">
         </div>
         <button type="submit" class="btn btn-primary" data-i18n="register_submit">Registrieren</button>
       </form>
-      <div class="modal-msg" id="msg-register" data-i18n="register_msg">Demo: In der echten Version wäre Ihr Konto jetzt angelegt.</div>
+      <div class="modal-msg" id="msg-register" data-i18n="register_msg">Fehler erscheinen hier. Passwort mind. 10 Zeichen.</div>
       <div class="modal-foot">
         <span data-i18n="register_has_account">Bereits ein Konto?</span>
         <a onclick="switchAuth('login')" data-i18n="register_switch">Jetzt einloggen</a>
@@ -1500,14 +1511,14 @@ const translations = {
     nav_market:"Marktplatz", nav_process:"Ablauf", nav_login:"Login", nav_register:"Registrieren",
     register_tab:"Registrieren",
     login_h3:"Willkommen zurück", login_sub:"Melden Sie sich an, um Anfragen und Angebote zu verwalten.",
-    login_submit:"Einloggen", login_msg:"Demo: In der echten Version würden Sie jetzt eingeloggt.",
+    login_submit:"Einloggen", login_msg:"Fehler erscheinen hier.",
     login_no_account:"Noch kein Konto?", login_switch:"Jetzt registrieren",
-    register_h3:"Konto erstellen", register_sub:"Kostenlos registrieren und Zugang zum Marktplatz erhalten.",
-    register_submit:"Registrieren", register_msg:"Demo: In der echten Version wäre Ihr Konto jetzt angelegt.",
+    register_h3:"Konto erstellen", register_sub:"",
+    register_submit:"Registrieren", register_msg:"Fehler erscheinen hier. Passwort mind. 10 Zeichen.",
     register_has_account:"Bereits ein Konto?", register_switch:"Jetzt einloggen",
     field_email:"E-Mail-Adresse", field_email_ph:"name@unternehmen.de",
     field_password:"Passwort", field_password_ph:"••••••••",
-    field_company:"Unternehmen", field_company_ph:"Musterbahn GmbH",
+    field_first_name:"Vorname", field_first_name_ph:"Max", field_last_name:"Nachname", field_last_name_ph:"Mustermann", field_company:"Unternehmen", field_company_ph:"Musterbahn GmbH", field_password_confirm:"Passwort wiederholen", field_password_confirm_ph:"Passwort erneut eingeben",
     field_role:"Unternehmensart", field_role_ph:"Bitte wählen",
     hero_eyebrow:"Marktplatz für Sondertransporte auf der Schiene",
     hero_h1:'Sondertransport <em>gesucht.</em><br>Sondertransport <em>gefunden.</em>',
@@ -1729,12 +1740,12 @@ const translations = {
     login_h3:"Welcome back", login_sub:"Log in to manage your requests and offers.",
     login_submit:"Log in", login_msg:"Demo: In the real version, you'd be logged in now.",
     login_no_account:"No account yet?", login_switch:"Sign up now",
-    register_h3:"Create an account", register_sub:"Sign up for free and get access to the marketplace.",
+    register_h3:"Create an account", register_sub:"",
     register_submit:"Sign up", register_msg:"Demo: In the real version, your account would be created now.",
     register_has_account:"Already have an account?", register_switch:"Log in now",
     field_email:"Email address", field_email_ph:"name@company.com",
     field_password:"Password", field_password_ph:"••••••••",
-    field_company:"Company", field_company_ph:"Sample Rail GmbH",
+    field_first_name:"First name", field_first_name_ph:"Max", field_last_name:"Last name", field_last_name_ph:"Mustermann", field_company:"Company", field_company_ph:"Sample Rail GmbH", field_password_confirm:"Confirm password", field_password_confirm_ph:"Enter password again",
     field_role:"Company type", field_role_ph:"Please select",
     hero_eyebrow:"Marketplace for special rail transports",
     hero_h1:'Special transport <em>needed.</em><br>Special transport <em>found.</em>',
@@ -2140,16 +2151,14 @@ function switchAuth(mode){
 }
 
 function submitAuth(event, mode){
+  // Echte Auth läuft über public/api-adapter.js (window.submitAuth).
+  // Fallback nur wenn Adapter fehlt:
   event.preventDefault();
-  document.getElementById('msg-' + mode).classList.add('show');
-  let company = '';
-  if(mode === 'register'){
-    company = event.target.querySelector('input[type="text"]').value.trim();
+  const msg = document.getElementById('msg-' + mode);
+  if(msg){
+    msg.textContent = 'API-Adapter nicht geladen. Bitte Seite neu laden.';
+    msg.classList.add('show');
   }
-  setTimeout(()=>{
-    closeAuth();
-    enterApp(company);
-  }, 900);
   return false;
 }
 

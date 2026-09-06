@@ -24,27 +24,100 @@ async function api(path, options={}) {
 function apiToast(msg){ showToast(msg); }
 function setLoadingButton(form, loading){ const b=form?.querySelector('button[type=submit]'); if(b){b.disabled=loading;b.dataset.old=b.dataset.old||b.textContent;if(loading)b.textContent='…';else b.textContent=b.dataset.old;} }
 
-async function submitAuth(event, mode){
-  event.preventDefault(); const form=event.target; setLoadingButton(form,true);
-  try{
-    if(mode==='login'){
-      const inputs=form.querySelectorAll('input');
-      const out=await api('/auth/login',{method:'POST',body:JSON.stringify({email:inputs[0].value.trim(),password:inputs[1].value})});
-      trassaUser=out.user; closeAuth(); enterApp(trassaUser.company?.name || ''); await trassaLoadDashboard();
-    }else{
-      const text=form.querySelector('input[type=text]').value.trim(); const role=document.getElementById('register-role').value;
-      const inputs=form.querySelectorAll('input'); const out=await api('/auth/register',{method:'POST',body:JSON.stringify({company:text,role,email:inputs[1].value.trim(),password:inputs[2].value})});
-      trassaUser=out.user; closeAuth(); enterApp(trassaUser.company?.name || text); await trassaLoadDashboard();
-    }
-  }catch(e){ alert(e.message); } finally{ setLoadingButton(form,false); }
-  return false;
+function showAuthMessage(mode, text, isError){
+  const el=document.getElementById('msg-'+mode);
+  if(!el){ if(text) alert(text); return; }
+  el.textContent=text||'';
+  el.classList.toggle('show', !!text);
+  el.style.color=isError?'#b42318':'#0f6b4c';
+  el.style.background=isError?'#fef3f2':'#ecfdf3';
+  el.style.border=isError?'1px solid #fecdca':'1px solid #a7f3d0';
 }
 
-async function exitApp(){ try{await api('/auth/logout',{method:'POST'});}catch{} trassaUser=null; document.body.classList.remove('app-mode'); window.scrollTo(0,0); }
+async function submitAuth(event, mode){
+  event.preventDefault();
+  const form=event.target;
+  setLoadingButton(form,true);
+  showAuthMessage(mode,'');
+  try{
+    if(!trassaCsrf){
+      const c=await fetch(TRASSA_API+'/csrf',{credentials:'same-origin'});
+      trassaCsrf=(await c.json()).csrfToken;
+    }
+    if(mode==='login'){
+      const email=form.querySelector('input[type=email]')?.value.trim()||'';
+      const password=form.querySelector('input[type=password]')?.value||'';
+      if(!email||!password) throw new Error('E-Mail und Passwort eingeben.');
+      const out=await api('/auth/login',{method:'POST',body:JSON.stringify({email,password})});
+      trassaUser=out.user;
+      window.trassaUser=trassaUser;
+      closeAuth();
+      enterApp(trassaUser.company?.name||'');
+      await trassaLoadDashboard();
+    }else{
+      const first_name=document.getElementById('reg-first-name')?.value.trim()
+        || form.querySelector('#reg-first-name')?.value.trim() || '';
+      const last_name=document.getElementById('reg-last-name')?.value.trim() || '';
+      const company=document.getElementById('reg-company')?.value.trim()
+        || form.querySelector('input[type=text]')?.value.trim() || '';
+      const role=document.getElementById('register-role')?.value||'';
+      const email=document.getElementById('reg-email')?.value.trim()
+        || form.querySelector('input[type=email]')?.value.trim() || '';
+      const password=document.getElementById('reg-password')?.value || '';
+      const passwordConfirm=document.getElementById('reg-password-confirm')?.value || '';
+      if(!first_name) throw new Error('Bitte Vornamen eingeben.');
+      if(!last_name) throw new Error('Bitte Nachnamen eingeben.');
+      if(company.length<2) throw new Error('Unternehmensname ist zu kurz.');
+      if(!role) throw new Error('Bitte Unternehmensart wählen.');
+      if(!email) throw new Error('E-Mail eingeben.');
+      if(password.length<10) throw new Error('Passwort muss mindestens 10 Zeichen haben.');
+      if(password!==passwordConfirm) throw new Error('Passwörter stimmen nicht überein.');
+      const out=await api('/auth/register',{method:'POST',body:JSON.stringify({company,role,first_name,last_name,email,password})});
+      trassaUser=out.user;
+      window.trassaUser=trassaUser;
+      closeAuth();
+      enterApp(trassaUser.company?.name||company);
+      await trassaLoadDashboard();
+      if(out.emailVerificationSent===false){
+        apiToast('Konto angelegt. (E-Mail-Bestätigung übersprungen – SMTP nicht konfiguriert.)');
+      }else if(out.emailVerificationSent){
+        apiToast('Konto angelegt. Bitte E-Mail zur Bestätigung prüfen.');
+      }else{
+        apiToast('Konto angelegt. Willkommen bei TRASSA!');
+      }
+    }
+  }catch(e){
+    showAuthMessage(mode, e.message||'Anmeldung fehlgeschlagen.', true);
+  }finally{
+    setLoadingButton(form,false);
+  }
+  return false;
+}
+window.submitAuth=submitAuth;
+
+async function exitApp(){
+  try{ await api('/auth/logout',{method:'POST'}); }catch{}
+  trassaUser=null;
+  window.trassaUser=null;
+  document.body.classList.remove('app-mode');
+  window.scrollTo(0,0);
+}
+window.exitApp=exitApp;
 
 async function trassaBoot(){
-  try{ const out=await api('/auth/me'); trassaUser=out.user; enterApp(trassaUser.name || trassaUser.company?.name || ''); }
-  catch{ /* public mode */ }
+  try{
+    const [csrfRes, meOut]=await Promise.all([
+      fetch(TRASSA_API+'/csrf',{credentials:'same-origin'}).then(r=>r.json()).catch(()=>({})),
+      api('/auth/me').catch(()=>null)
+    ]);
+    if(csrfRes?.csrfToken) trassaCsrf=csrfRes.csrfToken;
+    if(meOut?.user){
+      trassaUser=meOut.user;
+      window.trassaUser=trassaUser;
+      enterApp(trassaUser.company?.name||trassaUser.name||'');
+      await trassaLoadDashboard();
+    }
+  }catch{ /* öffentliche Startseite */ }
 }
 
 async function trassaLoadDashboard(){

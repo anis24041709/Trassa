@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS users (
   company_id uuid NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   email text NOT NULL UNIQUE,
   password_hash text NOT NULL,
+  first_name text,
+  last_name text,
   is_active boolean NOT NULL DEFAULT true,
   is_admin boolean NOT NULL DEFAULT false,
   email_verified_at timestamptz,
@@ -185,3 +187,6 @@ ALTER TABLE documents ADD COLUMN IF NOT EXISTS sha256 text;
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS due_date date;
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
 ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name text;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name text;

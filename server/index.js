@@ -47,9 +47,14 @@ function ensureCsrf(req, res, next) {
 }
 function requireCsrf(req, res, next) {
   if (['GET','HEAD','OPTIONS'].includes(req.method)) return next();
-  const a = req.cookies[csrfCookie];
-  const b = req.get('x-csrf-token');
-  if (!a || !b || !crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b))) return res.status(403).json({ error: 'CSRF-Prüfung fehlgeschlagen' });
+  const a = String(req.cookies[csrfCookie] || '');
+  const b = String(req.get('x-csrf-token') || '');
+  if (!a || !b || a.length !== b.length) return res.status(403).json({ error: 'CSRF-Prüfung fehlgeschlagen' });
+  try {
+    if (!crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b))) return res.status(403).json({ error: 'CSRF-Prüfung fehlgeschlagen' });
+  } catch {
+    return res.status(403).json({ error: 'CSRF-Prüfung fehlgeschlagen' });
+  }
   next();
 }
 async function auth(req, res, next) {
@@ -78,7 +83,7 @@ function normalizeRole(value) {
   if (key === 'logistiker' || key.includes('logistik') || key.includes('logistics') || key.includes('spedition') || key.includes('freight forward')) return 'Logistiker';
   return 'Sonstige';
 }
-const companySchema = z.object({ company:z.string().trim().min(2).max(200), role:z.string().trim().min(1).max(200).transform(normalizeRole), email:z.string().email().max(254), password:z.string().min(10).max(128) });
+const companySchema = z.object({ company:z.string().trim().min(2).max(200), role:z.string().trim().min(1).max(200).transform(normalizeRole), first_name:z.string().trim().min(1).max(100), last_name:z.string().trim().min(1).max(100), email:z.string().email().max(254), password:z.string().min(10).max(128) });
 const requestSchema = z.object({ start:z.string().trim().min(1).max(200), ziel:z.string().trim().min(1).max(200), von:z.string().optional().or(z.literal('')), bis:z.string().optional().or(z.literal('')), gewicht:z.coerce.number().nonnegative().max(100000).optional().nullable(), lichtKey:z.string().max(100).optional(), wagenartKey:z.string().max(100).optional(), gefahrValue:z.enum(['ja','nein']).default('nein'), titel:z.string().trim().min(3).max(200), beschreibung:z.string().max(5000).optional().default(''), status:z.enum(['draft','new']).default('new') });
 const offerSchema = z.object({ price_cents:z.coerce.number().int().nonnegative().max(1000000000), valid_until:z.string().optional().or(z.literal('')), contact_name:z.string().max(200).optional().default(''), note:z.string().max(5000).optional().default('') });
 const offerActionSchema = z.object({ status:z.enum(['accepted','declined','withdrawn']) });
@@ -102,14 +107,19 @@ app.post('/api/auth/register', authLimiter, ensureCsrf, requireCsrf, async (req,
   const d=p.data, client=await pool.connect(); const raw=token();
   try { await client.query('BEGIN');
     const exists=await client.query('SELECT 1 FROM users WHERE lower(email)=lower($1)',[d.email]); if(exists.rowCount){await client.query('ROLLBACK');return res.status(409).json({error:'E-Mail ist bereits registriert'});}
-    const c=await client.query('INSERT INTO companies(name,role,email) VALUES($1,$2,lower($3)) RETURNING *',[d.company,d.role,d.email]);
+    const contactName=[d.first_name,d.last_name].filter(Boolean).join(' '); const c=await client.query('INSERT INTO companies(name,role,email,contact_name) VALUES($1,$2,lower($3),$4) RETURNING *',[d.company,d.role,d.email,contactName]);
     const hash=await bcrypt.hash(d.password,12);
-    const u=await client.query('INSERT INTO users(company_id,email,password_hash,verification_token_hash,verification_expires_at) VALUES($1,lower($2),$3,$4,now()+interval \'24 hours\') RETURNING id,company_id,email,is_admin,email_verified_at',[c.rows[0].id,d.email,hash,sha(raw)]);
+    const u=await client.query('INSERT INTO users(company_id,email,password_hash,first_name,last_name,verification_token_hash,verification_expires_at) VALUES($1,lower($2),$3,$4,$5,$6,now()+interval \'24 hours\') RETURNING id,company_id,email,first_name,last_name,is_admin,email_verified_at',[c.rows[0].id,d.email,hash,d.first_name,d.last_name,sha(raw)]);
     await client.query('COMMIT');
     const sent=await sendMail(d.email,'TRASSA E-Mail bestätigen',`<p>Willkommen bei TRASSA.</p><p>Bitte bestätigen Sie Ihre E-Mail:</p><p><a href="${APP_URL}/api/auth/verify-email?token=${raw}">E-Mail bestätigen</a></p>`);
+    // Ohne SMTP: E-Mail direkt als bestätigt markieren, damit echte Nutzer sofort arbeiten können
+    if(!sent){
+      await pool.query('UPDATE users SET email_verified_at=now(),verification_token_hash=NULL,verification_expires_at=NULL WHERE id=$1',[u.rows[0].id]);
+      u.rows[0].email_verified_at=new Date();
+    }
     await audit({user:{sub:u.rows[0].id,companyId:c.rows[0].id}},'register','user',u.rows[0].id);
     setAuth(res,sign(u.rows[0]));
-    res.status(201).json({user:{id:u.rows[0].id,email:u.rows[0].email,company:{id:c.rows[0].id,name:c.rows[0].name,role:c.rows[0].role}},emailVerificationSent:sent});
+    res.status(201).json({user:{id:u.rows[0].id,email:u.rows[0].email,first_name:u.rows[0].first_name,last_name:u.rows[0].last_name,email_verified_at:u.rows[0].email_verified_at||null,company:{id:c.rows[0].id,name:c.rows[0].name,role:c.rows[0].role,contact_name:c.rows[0].contact_name}},emailVerificationSent:!!sent});
   } catch(e){await client.query('ROLLBACK');console.error(e);res.status(500).json({error:'Registrierung fehlgeschlagen'});} finally{client.release();}
 });
 
@@ -123,7 +133,7 @@ app.post('/api/auth/login', authLimiter, ensureCsrf, requireCsrf, async(req,res)
   res.json({user:{id:q.rows[0].id,email:q.rows[0].email,is_admin:q.rows[0].is_admin,email_verified_at:q.rows[0].email_verified_at,company:{id:q.rows[0].company_id,name:q.rows[0].company_name,role:q.rows[0].role,contact_name:q.rows[0].contact_name,phone:q.rows[0].phone,notification_offers:q.rows[0].notification_offers,notification_messages:q.rows[0].notification_messages,is_verified:q.rows[0].is_verified}}});
 });
 app.post('/api/auth/logout',ensureCsrf,requireCsrf,(req,res)=>{clearAuth(res);res.status(204).end();});
-app.get('/api/auth/me',auth,async(req,res)=>{const q=await pool.query(`SELECT u.id user_id,u.email,u.is_admin,u.email_verified_at,u.company_id,c.name company_name,c.role,c.contact_name,c.phone,c.notification_offers,c.notification_messages,c.is_verified FROM users u JOIN companies c ON c.id=u.company_id WHERE u.id=$1`,[req.user.sub]);if(!q.rowCount)return res.status(401).json({error:'Benutzer nicht gefunden'});const x=q.rows[0];res.json({user:{id:x.user_id,email:x.email,is_admin:x.is_admin,email_verified_at:x.email_verified_at,company:{id:x.company_id,name:x.company_name,role:x.role,contact_name:x.contact_name,phone:x.phone,notification_offers:x.notification_offers,notification_messages:x.notification_messages,is_verified:x.is_verified}}});});
+app.get('/api/auth/me',auth,async(req,res)=>{const q=await pool.query(`SELECT u.id user_id,u.email,u.first_name,u.last_name,u.is_admin,u.email_verified_at,u.company_id,c.name company_name,c.role,c.contact_name,c.phone,c.notification_offers,c.notification_messages,c.is_verified FROM users u JOIN companies c ON c.id=u.company_id WHERE u.id=$1`,[req.user.sub]);if(!q.rowCount)return res.status(401).json({error:'Benutzer nicht gefunden'});const x=q.rows[0];res.json({user:{id:x.user_id,email:x.email,first_name:x.first_name,last_name:x.last_name,is_admin:x.is_admin,email_verified_at:x.email_verified_at,company:{id:x.company_id,name:x.company_name,role:x.role,contact_name:x.contact_name,phone:x.phone,notification_offers:x.notification_offers,notification_messages:x.notification_messages,is_verified:x.is_verified}}});});
 app.post('/api/auth/forgot-password',passwordLimiter,ensureCsrf,requireCsrf,async(req,res)=>{const p=z.object({email:z.string().email()}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Ungültige E-Mail'});const q=await pool.query('SELECT id,email FROM users WHERE lower(email)=lower($1) AND is_active=true',[p.data.email]);if(q.rowCount){const raw=token();await pool.query('UPDATE users SET reset_token_hash=$1,reset_expires_at=now()+interval \'1 hour\' WHERE id=$2',[sha(raw),q.rows[0].id]);await sendMail(q.rows[0].email,'TRASSA Passwort zurücksetzen',`<p>Passwort zurücksetzen: <a href="${APP_URL}/reset-password?token=${raw}">Neues Passwort setzen</a></p>`);await audit({user:{sub:q.rows[0].id}},'password_reset_requested');}res.json({ok:true,message:'Wenn die Adresse existiert, wurde eine E-Mail versendet.'});});
 app.post('/api/auth/reset-password',passwordLimiter,ensureCsrf,requireCsrf,async(req,res)=>{const p=z.object({token:z.string().min(20),password:z.string().min(10).max(128)}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Ungültige Daten'});const q=await pool.query('SELECT id FROM users WHERE reset_token_hash=$1 AND reset_expires_at>now()',[sha(p.data.token)]);if(!q.rowCount)return res.status(400).json({error:'Token ungültig oder abgelaufen'});await pool.query('UPDATE users SET password_hash=$1,reset_token_hash=NULL,reset_expires_at=NULL WHERE id=$2',[await bcrypt.hash(p.data.password,12),q.rows[0].id]);res.json({ok:true});});
 
