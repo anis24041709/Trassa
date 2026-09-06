@@ -230,46 +230,223 @@ async function renderMarketRequests(){
 function populateMarketFilters(){}
 
 async function renderOffers(){
-  try{const out=await api('/offers');trassaOffers=out.offers||[];document.getElementById('offers-list').innerHTML=trassaOffers.map((o,i)=>`<div class="list-row clickable" onclick="openOfferDetail(${i})"><div><div class="l-main">${esc(o.route)}</div><div class="l-sub">${esc(o.partner)}</div></div><div class="l-field"><span class="k">Datum</span>${new Date(o.created_at||o.date).toLocaleDateString(lang==='de'?'de-DE':'en-GB')}</div><div class="l-field"><span class="k">Preis</span>${esc(o.price)}</div>${o.status==='pending'&&o.request_company===trassaUser?.company?.id?`<div style="display:flex;gap:8px;"><button type="button" class="btn btn-primary" onclick="event.stopPropagation();offerAction(${i},'accepted')">Annehmen</button><button type="button" class="btn btn-ghost" onclick="event.stopPropagation();offerAction(${i},'declined')">Ablehnen</button></div>`:`<div class="status-badge ${statusClass[o.status]||'grey'}">${esc(o.status)}</div>`}</div>`).join('')||'<div class="no-results">Keine Angebote vorhanden.</div>';}catch(e){apiToast(e.message)}
+  try{
+    const out=await api('/offers');
+    trassaOffers=out.offers||[];
+    const myCompanyId=trassaUser?.company?.id;
+    document.getElementById('offers-list').innerHTML=trassaOffers.map((o)=>{
+      const isRequester=o.request_company===myCompanyId;
+      const isProvider=o.provider_company_id===myCompanyId;
+      let actionsHtml='';
+      if(o.status==='pending'&&isRequester){
+        actionsHtml=`<div style="display:flex;gap:8px;"><button type="button" class="btn btn-primary" onclick="event.stopPropagation();offerActionById('${esc(o.id)}','accepted')">Annehmen</button><button type="button" class="btn btn-ghost" onclick="event.stopPropagation();offerActionById('${esc(o.id)}','declined')">Ablehnen</button></div>`;
+      }else if(o.status==='pending'&&isProvider){
+        actionsHtml=`<div style="display:flex;gap:8px;"><button type="button" class="btn btn-ghost" onclick="event.stopPropagation();offerActionById('${esc(o.id)}','withdrawn')">Zurückziehen</button></div>`;
+      }else{
+        actionsHtml=`<div class="status-badge ${statusClass[o.status]||'grey'}">${esc(offerStatusLabel(o.status))}</div>`;
+      }
+      return `<div class="list-row clickable" data-offer-id="${esc(o.id)}" onclick="openRealOfferDetail('${esc(o.id)}')"><div><div class="l-main">${esc(o.route)}</div><div class="l-sub">${esc(o.partner)}</div></div><div class="l-field"><span class="k">Datum</span>${new Date(o.created_at||o.date).toLocaleDateString(lang==='de'?'de-DE':'en-GB')}</div><div class="l-field"><span class="k">Preis</span>${esc(o.price)}</div>${actionsHtml}</div>`;
+    }).join('')||'<div class="no-results">Keine Angebote vorhanden.</div>';
+  }catch(e){apiToast(e.message)}
 }
-async function offerAction(index,newStatus){try{await api('/offers/'+trassaOffers[index].id,{method:'PATCH',body:JSON.stringify({status:newStatus})});apiToast(newStatus==='accepted'?'Angebot angenommen.':'Angebot abgelehnt.');await renderOffers();await trassaLoadDashboard();}catch(e){apiToast(e.message)}}
-async function openOfferDetail(index){
-  currentOfferIndex=index;
+
+function offerStatusLabel(status){
+  return ({pending:'Offen',accepted:'Angenommen',declined:'Abgelehnt',withdrawn:'Zurückgezogen'})[status]||status||'—';
+}
+
+async function offerActionById(offerId,newStatus){
+  try{
+    await api('/offers/'+encodeURIComponent(offerId),{method:'PATCH',body:JSON.stringify({status:newStatus})});
+    const msgs={accepted:'Angebot angenommen.',declined:'Angebot abgelehnt.',withdrawn:'Angebot zurückgezogen.'};
+    apiToast(msgs[newStatus]||'Status aktualisiert.');
+    await renderOffers();
+    await trassaLoadDashboard();
+    if(currentPanel==='angebot-detail') await openRealOfferDetail(offerId);
+  }catch(e){apiToast(e.message)}
+}
+
+async function offerAction(index,newStatus){
   const o=trassaOffers[index];
-  if(!o)return;
+  if(o) return offerActionById(o.id,newStatus);
+}
 
-  // Wichtig: zuerst das Panel öffnen. Der alte Prototype-Renderer läuft beim
-  // Panelwechsel noch mit und würde sonst die echten API-Werte überschreiben.
-  switchAppPanel('angebot-detail');
+let offerDetailConversationId=null;
 
+function offerDetailPriceNumber(o){
+  if(Number.isFinite(Number(o?.price_cents))) return Number(o.price_cents)/100;
+  const normalized=String(o?.price||'').replace(/[^0-9,.-]/g,'').replace(/\./g,'').replace(',','.');
+  const value=Number(normalized);
+  return Number.isFinite(value)?value:0;
+}
+
+async function ensureOfferDetailConversation(o){
+  if(!o?.request_id) throw new Error('Angebot ohne Anfrage-Bezug – Chat nicht möglich.');
+  const myCompanyId=trassaUser?.company?.id;
+  const partnerCompanyId=o.request_company===myCompanyId
+    ? (o.provider_company_id||null)
+    : (o.request_company||null);
+  if(!partnerCompanyId) throw new Error('Gesprächspartner fehlt.');
+  const out=await api('/conversations',{method:'POST',body:JSON.stringify({request_id:o.request_id,company_id:partnerCompanyId})});
+  offerDetailConversationId=out.conversation?.id||null;
+  return offerDetailConversationId;
+}
+
+async function loadOfferDetailChat(o){
+  const thread=document.getElementById('offer-chat-thread');
+  const title=document.getElementById('offer-chat-title');
+  if(title) title.textContent=`Chat mit ${o.partner||'Gesprächspartner'}`;
+  if(!thread)return;
+  thread.innerHTML='<div class="offer-chat-empty">Chat wird geladen …</div>';
+  try{
+    const conversationId=await ensureOfferDetailConversation(o);
+    if(!conversationId){thread.innerHTML='<div class="offer-chat-empty">Chat konnte nicht geöffnet werden.</div>';return;}
+    const out=await api('/conversations/'+encodeURIComponent(conversationId)+'/messages');
+    const messages=out.messages||[];
+    thread.innerHTML=messages.length?messages.map(m=>`<div class="offer-chat-message ${m.sender_user_id===trassaUser?.id?'out':'in'}">${esc(m.body)}<span class="meta">${new Date(m.created_at).toLocaleString(lang==='de'?'de-DE':'en-GB')}</span></div>`).join(''):'<div class="offer-chat-empty">Noch keine Nachrichten. Schreiben Sie die erste Nachricht.</div>';
+    thread.scrollTop=thread.scrollHeight;
+  }catch(e){thread.innerHTML=`<div class="offer-chat-empty">${esc(e.message)}</div>`;}
+}
+
+async function sendOfferDetailMessage(event){
+  event.preventDefault();
+  const input=document.getElementById('offer-chat-input');
+  const body=input?.value.trim();
+  const o=window.__trassaCurrentOffer;
+  if(!body||!o)return false;
+  try{
+    if(!offerDetailConversationId) await ensureOfferDetailConversation(o);
+    if(!offerDetailConversationId) throw new Error('Chat konnte nicht geöffnet werden');
+    await api('/conversations/'+encodeURIComponent(offerDetailConversationId)+'/messages',{method:'POST',body:JSON.stringify({body})});
+    input.value='';
+    await loadOfferDetailChat(o);
+  }catch(e){apiToast(e.message)}
+  return false;
+}
+window.sendOfferDetailMessage=sendOfferDetailMessage;
+
+async function submitOfferPriceUpdate(event){
+  event.preventDefault();
+  const o=window.__trassaCurrentOffer;
+  if(!o)return false;
+  const isRequester=o.request_company===trassaUser?.company?.id;
+  if(isRequester){apiToast('Nur der Anbieter kann den Preis aktualisieren.');return false;}
+  if(o.status!=='pending'){apiToast('Nur offene Angebote können aktualisiert werden.');return false;}
+  const input=document.getElementById('offer-price-input');
+  const value=Number(input?.value);
+  if(!Number.isFinite(value)||value<0){apiToast('Bitte einen gültigen Preis eingeben.');return false;}
+  try{
+    await api('/offers/'+encodeURIComponent(o.id)+'/price',{method:'PATCH',body:JSON.stringify({price_cents:Math.round(value*100)})});
+    apiToast('Preis wurde aktualisiert.');
+    await renderOffers();
+    await openRealOfferDetail(o.id);
+  }catch(e){apiToast(e.message)}
+  return false;
+}
+window.submitOfferPriceUpdate=submitOfferPriceUpdate;
+
+function renderRealOfferDetail(o){
+  const myCompanyId=trassaUser?.company?.id;
+  const isRequester=o.request_company===myCompanyId;
+  const isProvider=o.provider_company_id===myCompanyId;
+  const transportzeit=(o.from_date||o.to_date)
+    ? `${o.from_date?formatDateDMY(o.from_date):'—'} – ${o.to_date?formatDateDMY(o.to_date):'—'}`
+    : '—';
   const fmtDate=(v)=>{
     if(!v)return '—';
     const d=new Date(v);
     return Number.isNaN(d.getTime())?String(v):d.toLocaleDateString(lang==='de'?'de-DE':'en-GB');
   };
-  const statusLabels={pending:'Offen',accepted:'Angenommen',declined:'Abgelehnt',withdrawn:'Zurückgezogen'};
-  const isRequester=o.request_company===trassaUser?.company?.id;
-
   document.getElementById('offer-detail-h1').textContent=o.route||'Angebot';
   document.getElementById('offer-detail-sub').textContent=o.partner||'—';
   document.getElementById('offer-detail-grid').innerHTML=[
     ['Strecke',o.route||'—'],
     [isRequester?'Anbieter':'Auftraggeber',o.partner||'—'],
+    ['Transportzeit',transportzeit],
+    ['Ansprechpartner',o.contact||o.contact_name||'—'],
     ['Preis',o.price||'—'],
     ['Eingegangen am',fmtDate(o.created_at||o.date)],
-    ['Ansprechpartner',o.contact||'—'],
     ['Gültig bis',fmtDate(o.validUntil||o.valid_until)],
-    ['Status',statusLabels[o.status]||o.status||'—']
+    ['Status',offerStatusLabel(o.status)]
   ].map(([k,v])=>`<div class="detail-item"><span class="k">${esc(k)}</span><div class="v">${esc(v)}</div></div>`).join('');
-  document.getElementById('offer-detail-note').textContent=o.note||'—';
 
-  if(o.status==='pending'&&isRequester){
-    document.getElementById('offer-detail-actions').innerHTML=`<button type="button" class="btn btn-primary" onclick="offerAction(${index},'accepted')">Annehmen</button><button type="button" class="btn btn-ghost" onclick="offerAction(${index},'declined')">Ablehnen</button>`;
-  }else if(o.status==='pending'){
-    document.getElementById('offer-detail-actions').innerHTML=`<span class="status-badge ${statusClass[o.status]||'grey'}">${esc(statusLabels[o.status]||o.status)}</span>`;
-  }else{
-    document.getElementById('offer-detail-actions').innerHTML=`<span class="status-badge ${statusClass[o.status]||'grey'}">${esc(statusLabels[o.status]||o.status)}</span>`;
+  const priceInput=document.getElementById('offer-price-input');
+  const priceSubmit=document.getElementById('offer-price-submit');
+  const priceHelp=document.getElementById('offer-price-help');
+  const priceForm=document.getElementById('offer-price-form');
+  if(priceInput) priceInput.value=offerDetailPriceNumber(o).toFixed(2);
+  const canEdit=isProvider&&o.status==='pending';
+  if(priceInput) priceInput.disabled=!canEdit;
+  if(priceSubmit) priceSubmit.disabled=!canEdit;
+  if(priceForm) priceForm.style.opacity=canEdit?'1':'.7';
+  if(priceHelp) priceHelp.textContent=canEdit
+    ? 'Hier können Sie Ihren aktuellen Angebotspreis ändern und direkt speichern.'
+    : (isRequester?'Der Preis kann nur vom Anbieter geändert werden.':'Nur offene Angebote können preislich aktualisiert werden.');
+
+  const actions=document.getElementById('offer-detail-actions');
+  if(actions){
+    if(isRequester&&o.status==='pending'){
+      actions.innerHTML=`<button type="button" class="btn btn-primary" onclick="offerActionById('${esc(o.id)}','accepted')">Annehmen</button><button type="button" class="btn btn-ghost" onclick="offerActionById('${esc(o.id)}','declined')">Ablehnen</button>`;
+    }else if(isProvider&&o.status==='pending'){
+      actions.innerHTML=`<button type="button" class="btn btn-ghost" onclick="offerActionById('${esc(o.id)}','withdrawn')">Angebot zurückziehen</button>`;
+    }else{
+      actions.innerHTML='';
+    }
   }
+
+  offerDetailConversationId=null;
+  loadOfferDetailChat(o);
+}
+
+async function openRealOfferDetail(offerId){
+  try{
+    const out=await api('/offers/'+encodeURIComponent(offerId));
+    const o=out.offer;
+    if(!o)return;
+    window.__trassaCurrentOffer=o;
+    currentOfferIndex=trassaOffers.findIndex(x=>x.id===o.id);
+    // Panel wechseln, ohne Demo-Renderer zu triggern
+    currentPanel='angebot-detail';
+    document.querySelectorAll('#app-nav .app-nav-item').forEach(el=>{
+      el.classList.toggle('active', el.getAttribute('data-panel')==='angebote');
+    });
+    document.querySelectorAll('.app-main .app-panel').forEach(el=>{
+      el.style.display=(el.id==='panel-angebot-detail')?'block':'none';
+    });
+    renderRealOfferDetail(o);
+  }catch(e){apiToast(e.message)}
+}
+window.openRealOfferDetail=openRealOfferDetail;
+
+async function openOfferDetail(index){
+  const o=trassaOffers[index];
+  if(o) return openRealOfferDetail(o.id);
+}
+window.openOfferDetail=openOfferDetail;
+
+async function messageFromOfferId(offerId){
+  const o=window.__trassaCurrentOffer;
+  if(!o||o.id!==offerId)return;
+  const input=document.getElementById('offer-chat-input');
+  if(input){input.focus();input.scrollIntoView({behavior:'smooth',block:'center'});}
+}
+window.messageFromOfferId=messageFromOfferId;
+
+async function messageFromOffer(index){
+  const o=trassaOffers[index];
+  if(o)return openRealOfferDetail(o.id);
+}
+
+async function adjustOfferPriceById(offerId){
+  const o=window.__trassaCurrentOffer;
+  if(!o||o.id!==offerId)return;
+  const input=document.getElementById('offer-price-input');
+  if(input){input.focus();input.select();input.scrollIntoView({behavior:'smooth',block:'center'});}
+}
+window.adjustOfferPriceById=adjustOfferPriceById;
+
+async function adjustOfferPrice(index){
+  const o=trassaOffers[index];
+  if(o)return openRealOfferDetail(o.id);
 }
 
 async function renderTransports(){try{const out=await api('/transports');document.getElementById('transp-list').innerHTML=(out.transports||[]).map(tr=>`<div class="list-row cols-3"><div><div class="l-main">${esc(tr.route)}</div><div class="l-sub">${esc(tr.id)}</div></div><div class="l-field"><span class="k">Zeitraum</span>${esc(tr.zeit||'—')}</div><div class="status-badge ${statusClass[tr.status]||'grey'}">${esc(tr.status)}</div></div>`).join('')||'<div class="no-results">Keine Transporte vorhanden.</div>'}catch(e){apiToast(e.message)}}
@@ -289,8 +466,48 @@ async function publishNewRequest(){return createRequest('new')}
 async function saveDraftRequest(){return createRequest('draft')}
 async function createRequest(status){window.__trassaCurrentRequest=null;const data=collectNewRequestData();if((status==='new'&&(!data.start||!data.ziel||!data.titel))||(!data.start&&!data.ziel&&!data.titel)){apiToast('Bitte Pflichtfelder ausfüllen.');return}try{await api('/requests',{method:'POST',body:JSON.stringify({...data,status})});apiToast(status==='new'?'Anfrage veröffentlicht.':'Entwurf gespeichert.');switchAppPanel('anfragen');}catch(e){apiToast(e.message)}}
 
+// Demo-Renderer in panelRenderers durch echte API-Funktionen ersetzen
+if(typeof panelRenderers==='object'&&panelRenderers){
+  panelRenderers.dashboard=function(){ if(trassaUser) trassaLoadDashboard(); };
+  panelRenderers.marktplatz=function(){ if(trassaUser) renderMarketRequests(); };
+  panelRenderers.anfragen=function(){ if(trassaUser) renderMyRequests(); };
+  panelRenderers.angebote=function(){ if(trassaUser) renderOffers(); };
+  panelRenderers.transporte=function(){ if(trassaUser) renderTransports(); };
+  panelRenderers.nachrichten=function(){ if(trassaUser) renderMessages(); };
+  panelRenderers.dokumente=function(){ if(trassaUser) renderDocuments(); };
+  panelRenderers.abrechnung=function(){ if(trassaUser) renderBilling(); };
+  panelRenderers.einstellungen=function(){ if(trassaUser) loadSettings(); };
+  panelRenderers['angebot-detail']=function(){};
+}
+
 const oldSwitchAppPanel=window.switchAppPanel;
-window.switchAppPanel=async function(name){oldSwitchAppPanel(name);if(!trassaUser)return;try{if(name==='dashboard')await trassaLoadDashboard();if(name==='marktplatz')await renderMarketRequests();if(name==='anfragen')await renderMyRequests();if(name==='angebote')await renderOffers();if(name==='transporte')await renderTransports();if(name==='nachrichten')await renderMessages();if(name==='dokumente')await renderDocuments();if(name==='abrechnung')await renderBilling();if(name==='einstellungen')await loadSettings();}catch(e){console.error(e)}};
+window.switchAppPanel=async function(name){
+  // Bei angemeldetem User: direkt API-Renderer, kein Demo-Flash
+  if(trassaUser && typeof panelRenderers==='object' && panelRenderers[name] && name!=='angebot-detail'){
+    currentPanel=name;
+    const highlight=(typeof panelHighlightMap==='object'&&panelHighlightMap[name])||name;
+    document.querySelectorAll('#app-nav .app-nav-item').forEach(el=>{
+      el.classList.toggle('active', el.getAttribute('data-panel')===highlight);
+    });
+    document.querySelectorAll('.app-main .app-panel').forEach(el=>{
+      el.style.display=(el.id==='panel-'+name)?'block':'none';
+    });
+    try{
+      if(name==='dashboard') await trassaLoadDashboard();
+      else if(name==='marktplatz') await renderMarketRequests();
+      else if(name==='anfragen') await renderMyRequests();
+      else if(name==='angebote') await renderOffers();
+      else if(name==='transporte') await renderTransports();
+      else if(name==='nachrichten') await renderMessages();
+      else if(name==='dokumente') await renderDocuments();
+      else if(name==='abrechnung') await renderBilling();
+      else if(name==='einstellungen') await loadSettings();
+      else if(panelRenderers[name]) panelRenderers[name]();
+    }catch(e){ console.error(e); apiToast(e.message); }
+    return;
+  }
+  if(typeof oldSwitchAppPanel==='function') oldSwitchAppPanel(name);
+};
 
 window.addEventListener('load', () => {
   setTimeout(trassaBoot, 0);

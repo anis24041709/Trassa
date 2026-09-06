@@ -570,6 +570,24 @@
   footer .foot-cta h2{font-size:clamp(24px,4vw,36px);margin-bottom:16px;}
   footer p{color:var(--text-dim);font-size:14px;max-width:52ch;margin:0 auto 26px;}
   footer .fine{margin-top:40px;font-family:var(--mono);font-size:11px;color:var(--text-faint);}
+
+  /* V4.13: offer detail actions */
+  .offer-action-buttons{display:flex!important;gap:12px!important;flex-wrap:wrap!important;align-items:center!important;}
+  .offer-action-buttons .btn{display:inline-flex!important;align-items:center;justify-content:center;min-height:42px;padding:10px 18px!important;visibility:visible!important;opacity:1!important;}
+  #offer-detail-actions-wrap{display:block!important;visibility:visible!important;opacity:1!important;}
+  .offer-detail-workspace{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(280px,.65fr);gap:18px;align-items:start;}
+  .offer-chat-card,.offer-price-card{background:#fff;border:1px solid #dfe8f1;border-radius:12px;padding:18px;box-shadow:0 8px 24px rgba(30,70,110,.05);}
+  .offer-chat-thread{height:320px;overflow:auto;border:1px solid #e3ebf3;border-radius:10px;background:#f8fbfe;padding:14px;display:flex;flex-direction:column;gap:10px;}
+  .offer-chat-message{max-width:78%;padding:10px 12px;border-radius:10px;font-size:13.5px;line-height:1.45;}
+  .offer-chat-message.in{align-self:flex-start;background:#fff;border:1px solid #dfe7ef;color:#334155;}
+  .offer-chat-message.out{align-self:flex-end;background:#e4f3ff;color:#145982;border:1px solid #c8e5f9;}
+  .offer-chat-message .meta{display:block;margin-top:5px;font-size:10px;color:#8190a2;}
+  .offer-chat-empty{margin:auto;color:#8593a4;font-size:13px;text-align:center;}
+  .offer-chat-form{display:flex;gap:10px;margin-top:12px;}
+  .offer-chat-form input{flex:1;min-width:0;background:#fff;border:1px solid #d7e2ec;color:#26364b;border-radius:8px;padding:10px 12px;}
+  .offer-price-help{margin-top:10px;color:#718095;font-size:12.5px;line-height:1.45;}
+  @media (max-width:900px){.offer-detail-workspace{grid-template-columns:1fr}.offer-chat-thread{height:280px;}}
+
 </style>
 
 
@@ -1339,11 +1357,30 @@ body.app-mode .app-sidebar .logo{font-size:24px!important;letter-spacing:0!impor
           <div class="detail-grid" id="offer-detail-grid"></div>
         </div>
         <div class="step-block">
-          <div class="step-h" data-i18n="offer_note_h">Nachricht vom Anbieter</div>
-          <div class="detail-note-box" id="offer-detail-note"></div>
-        </div>
-        <div class="step-block" id="offer-detail-actions-wrap">
-          <div class="step3-actions" id="offer-detail-actions"></div>
+          <div class="offer-detail-workspace">
+            <section class="offer-chat-card">
+              <div class="step-h" id="offer-chat-title">Chat</div>
+              <div class="offer-chat-thread" id="offer-chat-thread">
+                <div class="offer-chat-empty">Chat wird geladen …</div>
+              </div>
+              <form class="offer-chat-form" id="offer-chat-form" onsubmit="return sendOfferDetailMessage(event)">
+                <input type="text" id="offer-chat-input" placeholder="Nachricht schreiben …" autocomplete="off" maxlength="4000">
+                <button type="submit" class="btn btn-primary">Senden</button>
+              </form>
+            </section>
+            <section class="offer-price-card" id="offer-price-card">
+              <div class="step-h">Preis aktualisieren</div>
+              <form id="offer-price-form" onsubmit="return submitOfferPriceUpdate(event)">
+                <div class="field">
+                  <label for="offer-price-input">Angebotspreis (€)</label>
+                  <input id="offer-price-input" type="number" min="0" step="0.01" required>
+                </div>
+                <button type="submit" class="btn btn-primary" id="offer-price-submit">Preis aktualisieren</button>
+                <div class="offer-price-help" id="offer-price-help"></div>
+              </form>
+              <div class="step3-actions offer-action-buttons" id="offer-detail-actions" style="margin-top:18px;"></div>
+            </section>
+          </div>
         </div>
       </div>
     </div>
@@ -1573,7 +1610,7 @@ const translations = {
     toast_download:"Demo: Download würde jetzt starten.",
     toast_accepted:"Angebot angenommen.", toast_declined:"Angebot abgelehnt.",
     msg_send_ph:"Nachricht schreiben …", msg_send:"Senden",
-    offer_back:"← Zurück zu Angeboten", offer_note_h:"Nachricht vom Anbieter",
+    offer_back:"← Zurück zu Angeboten",
     offer_l_route:"Strecke", offer_l_partner:"Anbieter", offer_l_price:"Preis", offer_l_status:"Status",
     offer_l_date:"Eingegangen am", offer_l_contact:"Ansprechpartner", offer_l_valid:"Gültig bis",
     req_back:"← Zurück zu Anfragen", req_desc_h:"Beschreibung / Besonderheiten",
@@ -2149,7 +2186,7 @@ const panelRenderers = {
   abrechnung: renderBilling,
   einstellungen: function(){},
   'neue-anfrage': function(){},
-  'angebot-detail': renderOfferDetail,
+  'angebot-detail': function(){},
   'anfrage-detail': renderRequestDetail
 };
 
@@ -2307,32 +2344,7 @@ function openOfferDetail(index){
 }
 
 function renderOfferDetail(){
-  const t = translations[lang];
-  const o = t.offers[currentOfferIndex];
-  if(!o) return;
-
-  document.getElementById('offer-detail-h1').textContent = o.route;
-  document.getElementById('offer-detail-sub').textContent = o.partner;
-
-  const fields = [
-    [t.offer_l_route, o.route],
-    [t.offer_l_partner, o.partner],
-    [t.offer_l_price, o.price],
-    [t.offer_l_date, o.date],
-    [t.offer_l_contact, o.contact],
-    [t.offer_l_valid, o.validUntil],
-    [t.offer_l_status, t['status_' + o.status]]
-  ];
-  document.getElementById('offer-detail-grid').innerHTML = fields.map(([k,v])=>`
-    <div class="detail-item"><span class="k">${k}</span><div class="v">${v}</div></div>
-  `).join('');
-
-  document.getElementById('offer-detail-note').textContent = o.note;
-
-  document.getElementById('offer-detail-actions').innerHTML = o.status === 'pending' ? `
-    <button type="button" class="btn btn-primary" onclick="offerAction(${currentOfferIndex},'accepted')">${t.offer_accept}</button>
-    <button type="button" class="btn btn-ghost" onclick="offerAction(${currentOfferIndex},'declined')">${t.offer_decline}</button>
-  ` : `<span class="status-badge ${statusClass[o.status]}">${t['status_' + o.status]}</span>`;
+  // Echte Angebotsdetails werden ausschließlich durch public/api-adapter.js gerendert.
 }
 
 /* ---------------- Transporte ---------------- */
