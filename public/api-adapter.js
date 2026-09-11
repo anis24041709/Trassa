@@ -525,7 +525,177 @@ async function adjustOfferPrice(index){
   if(o)return openRealOfferDetail(o.id);
 }
 
-async function renderTransports(){try{const out=await api('/transports');document.getElementById('transp-list').innerHTML=(out.transports||[]).map(tr=>`<div class="list-row cols-3"><div><div class="l-main">${esc(tr.route)}</div><div class="l-sub">${esc(tr.id)}</div></div><div class="l-field"><span class="k">Zeitraum</span>${esc(tr.zeit||'—')}</div><div class="status-badge ${statusClass[tr.status]||'grey'}">${esc(tr.status)}</div></div>`).join('')||'<div class="no-results">Keine Transporte vorhanden.</div>'}catch(e){apiToast(e.message)}}
+let trassaTransports=[];
+
+function transportStatusLabel(status){
+  return ({planned:'Geplant',underway:'Unterwegs',done:'Abgeschlossen',cancelled:'Storniert'})[status]||status||'—';
+}
+function transportStatusClass(status){
+  return ({planned:'amber',underway:'amber',done:'green',cancelled:'red',grey:'grey'})[status]||'grey';
+}
+
+async function renderTransports(){
+  try{
+    const out=await api('/transports');
+    trassaTransports=out.transports||[];
+    const list=document.getElementById('transp-list');
+    if(!list)return;
+    list.innerHTML=trassaTransports.map(tr=>`
+      <div class="list-row cols-3 clickable" onclick="openTransportDetail('${esc(tr.id)}')">
+        <div>
+          <div class="l-main">${esc(tr.route)}</div>
+          <div class="l-sub">#TR-${esc(tr.public_id||'—')} · ${esc(String(tr.id).slice(0,8))}…</div>
+        </div>
+        <div class="l-field"><span class="k">Zeitraum</span>${esc(tr.zeit||'—')}</div>
+        <div class="status-badge ${transportStatusClass(tr.status)}">${esc(transportStatusLabel(tr.status))}</div>
+      </div>`).join('')||'<div class="no-results">Keine Transporte vorhanden.</div>';
+  }catch(e){apiToast(e.message)}
+}
+
+function closeTransportDetail(){
+  const el=document.getElementById('transport-detail');
+  if(el) el.style.display='none';
+  window.__trassaCurrentTransport=null;
+}
+window.closeTransportDetail=closeTransportDetail;
+
+function openTransportDetail(id){
+  const tr=trassaTransports.find(t=>t.id===id);
+  if(!tr)return;
+  window.__trassaCurrentTransport=tr;
+  const box=document.getElementById('transport-detail');
+  if(box) box.style.display='block';
+  const title=document.getElementById('transport-detail-title');
+  if(title) title.textContent=tr.route||'Transport';
+  const grid=document.getElementById('transport-detail-grid');
+  if(grid){
+    grid.innerHTML=[
+      ['Strecke',tr.route||'—'],
+      ['Anfrage',tr.public_id?`#TR-${tr.public_id}`:'—'],
+      ['Zeitraum',tr.zeit||'—'],
+      ['Status',transportStatusLabel(tr.status)]
+    ].map(([k,v])=>`<div class="detail-item"><span class="k">${esc(k)}</span><div class="v">${esc(v)}</div></div>`).join('');
+  }
+  const actions=document.getElementById('transport-status-actions');
+  if(actions){
+    const opts=[
+      ['planned','Geplant'],
+      ['underway','Unterwegs'],
+      ['done','Abgeschlossen'],
+      ['cancelled','Storniert']
+    ];
+    actions.innerHTML=opts.map(([val,label])=>{
+      const active=tr.status===val;
+      return `<button type="button" class="btn ${active?'btn-primary':'btn-ghost'}" ${active?'disabled':''} onclick="updateTransportStatus('${esc(tr.id)}','${val}')">${label}</button>`;
+    }).join('');
+  }
+  const ratingBlock=document.getElementById('transport-rating-block');
+  if(ratingBlock){
+    const canRate=tr.status==='done' && !tr.rated;
+    ratingBlock.style.display=canRate?'block':'none';
+    const hid=document.getElementById('rating-transport-id');
+    if(hid) hid.value=tr.id;
+  }
+}
+window.openTransportDetail=openTransportDetail;
+
+async function updateTransportStatus(id,status){
+  try{
+    await api('/transports/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({status})});
+    apiToast('Status aktualisiert: '+transportStatusLabel(status));
+    await renderTransports();
+    openTransportDetail(id);
+    if(typeof trassaLoadDashboard==='function') await trassaLoadDashboard();
+  }catch(e){apiToast(e.message)}
+}
+window.updateTransportStatus=updateTransportStatus;
+
+async function submitTransportRating(event){
+  event.preventDefault();
+  const id=document.getElementById('rating-transport-id')?.value;
+  if(!id)return false;
+  const body={
+    reliability:Number(document.getElementById('rating-reliability')?.value||5),
+    communication:Number(document.getElementById('rating-communication')?.value||5),
+    punctuality:Number(document.getElementById('rating-punctuality')?.value||5),
+    quality:Number(document.getElementById('rating-quality')?.value||5),
+    comment:document.getElementById('rating-comment')?.value.trim()||''
+  };
+  try{
+    await api('/transports/'+encodeURIComponent(id)+'/rating',{method:'POST',body:JSON.stringify(body)});
+    apiToast('Bewertung wurde gespeichert.');
+    await renderTransports();
+    openTransportDetail(id);
+  }catch(e){apiToast(e.message)}
+  return false;
+}
+window.submitTransportRating=submitTransportRating;
+
+async function submitForgotPassword(event){
+  event.preventDefault();
+  showAuthMessage('forgot','');
+  const email=document.getElementById('forgot-email')?.value.trim()||'';
+  if(!email){showAuthMessage('forgot','Bitte E-Mail eingeben.',true);return false;}
+  try{
+    if(!trassaCsrf){
+      const c=await fetch(TRASSA_API+'/csrf',{credentials:'same-origin'});
+      trassaCsrf=(await c.json()).csrfToken;
+    }
+    const out=await api('/auth/forgot-password',{method:'POST',body:JSON.stringify({email})});
+    let msg=out.message||'Wenn die Adresse existiert, wurde eine E-Mail versendet.';
+    if(out.devResetUrl){
+      msg+=' (SMTP nicht konfiguriert – Test-Link: '+out.devResetUrl+')';
+      // Token ins Reset-Formular übernehmen
+      const tok=document.getElementById('reset-token');
+      if(tok && out.devResetToken) tok.value=out.devResetToken;
+    }
+    showAuthMessage('forgot', msg, false);
+  }catch(e){showAuthMessage('forgot', e.message||'Anfrage fehlgeschlagen.', true);}
+  return false;
+}
+window.submitForgotPassword=submitForgotPassword;
+
+async function submitResetPassword(event){
+  event.preventDefault();
+  showAuthMessage('reset','');
+  const token=document.getElementById('reset-token')?.value.trim()||'';
+  const password=document.getElementById('reset-password')?.value||'';
+  const confirm=document.getElementById('reset-password-confirm')?.value||'';
+  if(!token){showAuthMessage('reset','Reset-Token fehlt. Bitte Link aus der E-Mail nutzen.',true);return false;}
+  if(password.length<10){showAuthMessage('reset','Passwort muss mindestens 10 Zeichen haben.',true);return false;}
+  if(password!==confirm){showAuthMessage('reset','Passwörter stimmen nicht überein.',true);return false;}
+  try{
+    if(!trassaCsrf){
+      const c=await fetch(TRASSA_API+'/csrf',{credentials:'same-origin'});
+      trassaCsrf=(await c.json()).csrfToken;
+    }
+    await api('/auth/reset-password',{method:'POST',body:JSON.stringify({token,password})});
+    showAuthMessage('reset','Passwort wurde geändert. Sie können sich jetzt anmelden.',false);
+    setTimeout(()=>{ if(typeof switchAuth==='function') switchAuth('login'); }, 1200);
+  }catch(e){showAuthMessage('reset', e.message||'Zurücksetzen fehlgeschlagen.', true);}
+  return false;
+}
+window.submitResetPassword=submitResetPassword;
+
+function initPasswordResetFromUrl(){
+  try{
+    const url=new URL(window.location.href);
+    const path=url.pathname||'';
+    const token=url.searchParams.get('token')||'';
+    if(token && (path.includes('reset-password') || url.searchParams.has('token'))){
+      const tok=document.getElementById('reset-token');
+      if(tok) tok.value=token;
+      if(typeof openAuth==='function') openAuth('reset');
+      else if(typeof switchAuth==='function'){
+        document.getElementById('auth-overlay')?.classList.add('open');
+        switchAuth('reset');
+      }
+      // URL bereinigen
+      window.history.replaceState({},'', path.includes('reset-password')?'/':'/'+window.location.hash);
+    }
+  }catch(_){}
+}
+
 
 async function renderMessages(){try{const out=await api('/conversations');trassaConversations=out.conversations||[];document.getElementById('conv-list').innerHTML=trassaConversations.map((c,i)=>`<div class="conv-item ${i===0?'active':''}" onclick="selectConversation(${i})"><div class="c-name">${esc(c.names)}${c.unread?`<span class="c-unread">${c.unread}</span>`:''}</div><div class="c-last">${esc(c.last)}</div><div class="c-time">${new Date(c.last_at).toLocaleString(lang==='de'?'de-DE':'en-GB')}</div></div>`).join('')||'<div class="app-placeholder"><div class="ico">💬</div><h2>Noch keine Gespräche</h2><p>Nach einem Angebot können hier Nachrichten ausgetauscht werden.</p></div>';if(trassaConversations[0])await selectConversation(0)}catch(e){apiToast(e.message)}}
 async function selectConversation(i){trassaCurrentConversation=trassaConversations[i];if(!trassaCurrentConversation)return;document.querySelectorAll('.conv-item').forEach((x,n)=>x.classList.toggle('active',n===i));const out=await api('/conversations/'+trassaCurrentConversation.id+'/messages');trassaMessages=out.messages||[];document.getElementById('conv-thread-head').textContent=trassaCurrentConversation.names;document.getElementById('conv-thread-body').innerHTML=trassaMessages.map(m=>`<div class="bubble ${m.sender_user_id===trassaUser.id?'out':'in'}">${esc(m.body)}<span class="meta mono">${new Date(m.created_at).toLocaleString(lang==='de'?'de-DE':'en-GB')}</span></div>`).join('');const b=document.getElementById('conv-thread-body');b.scrollTop=b.scrollHeight;}
@@ -540,7 +710,27 @@ async function submitSettings(event){event.preventDefault();try{await api('/sett
 
 async function publishNewRequest(){return createRequest('new')}
 async function saveDraftRequest(){return createRequest('draft')}
-async function createRequest(status){window.__trassaCurrentRequest=null;const data=collectNewRequestData();if((status==='new'&&(!data.start||!data.ziel||!data.titel))||(!data.start&&!data.ziel&&!data.titel)){apiToast('Bitte Pflichtfelder ausfüllen.');return}try{await api('/requests',{method:'POST',body:JSON.stringify({...data,status})});apiToast(status==='new'?'Anfrage veröffentlicht.':'Entwurf gespeichert.');switchAppPanel('anfragen');}catch(e){apiToast(e.message)}}
+async function createRequest(status){
+  window.__trassaCurrentRequest=null;
+  if(typeof collectNewRequestData!=='function'){apiToast('Formular-Hilfe fehlt – Seite neu laden.');return}
+  const data=collectNewRequestData();
+  if((status==='new'&&(!data.start||!data.ziel||!data.titel))||(!data.start&&!data.ziel&&!data.titel)){
+    apiToast('Bitte Pflichtfelder ausfüllen.');
+    return;
+  }
+  try{
+    await api('/requests',{method:'POST',body:JSON.stringify({...data,status})});
+    apiToast(status==='new'?'Anfrage veröffentlicht.':'Entwurf gespeichert.');
+    await switchAppPanel('anfragen');
+  }catch(e){apiToast(e.message)}
+}
+window.publishNewRequest=publishNewRequest;
+window.saveDraftRequest=saveDraftRequest;
+window.createRequest=createRequest;
+window.offerActionById=offerActionById;
+window.renderOffers=renderOffers;
+window.selectConversation=selectConversation;
+window.sendMessage=sendMessage;
 
 // Demo-Renderer in panelRenderers durch echte API-Funktionen ersetzen
 if(typeof panelRenderers==='object'&&panelRenderers){
@@ -587,6 +777,7 @@ window.switchAppPanel=async function(name){
 
 window.addEventListener('load', () => {
   setTimeout(trassaBoot, 0);
+  setTimeout(initPasswordResetFromUrl, 50);
   const input = document.getElementById('nr-file-input');
   if (input) {
     input.addEventListener('change', async () => {
