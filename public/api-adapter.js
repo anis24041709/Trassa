@@ -751,8 +751,78 @@ async function renderMessages(){try{const out=await api('/conversations');trassa
 async function selectConversation(i){trassaCurrentConversation=trassaConversations[i];if(!trassaCurrentConversation)return;document.querySelectorAll('.conv-item').forEach((x,n)=>x.classList.toggle('active',n===i));const out=await api('/conversations/'+trassaCurrentConversation.id+'/messages');trassaMessages=out.messages||[];document.getElementById('conv-thread-head').textContent=trassaCurrentConversation.names;document.getElementById('conv-thread-body').innerHTML=trassaMessages.map(m=>`<div class="bubble ${m.sender_user_id===trassaUser.id?'out':'in'}">${esc(m.body)}<span class="meta mono">${new Date(m.created_at).toLocaleString(lang==='de'?'de-DE':'en-GB')}</span></div>`).join('');const b=document.getElementById('conv-thread-body');b.scrollTop=b.scrollHeight;}
 async function sendMessage(event){event.preventDefault();const input=document.getElementById('msg-input');const body=input.value.trim();if(!body||!trassaCurrentConversation)return false;try{await api('/conversations/'+trassaCurrentConversation.id+'/messages',{method:'POST',body:JSON.stringify({body})});input.value='';await selectConversation(trassaConversations.indexOf(trassaCurrentConversation));}catch(e){apiToast(e.message)}return false}
 
-async function renderDocuments(){try{const out=await api('/documents');trassaDocs=out.documents||[];document.getElementById('doc-list').innerHTML=trassaDocs.map(d=>`<div class="doc-row"><div class="d-ico">📎</div><div class="d-main"><div class="d-name">${esc(d.original_name)}</div><div class="d-meta">${Math.round(d.size_bytes/1024)} KB · ${new Date(d.created_at).toLocaleDateString(lang==='de'?'de-DE':'en-GB')}</div></div><button type="button" class="btn btn-ghost" onclick="downloadDoc('${d.id}')">Herunterladen</button></div>`).join('')||'<div class="no-results">Keine Dokumente vorhanden.</div>'}catch(e){apiToast(e.message)}}
-async function downloadDoc(id){window.open('/api/documents/'+id+'/download','_blank')}
+async function renderDocuments(){
+  try{
+    const out=await api('/documents');
+    trassaDocs=out.documents||[];
+    const list=document.getElementById('doc-list');
+    if(!list) return;
+    list.innerHTML=trassaDocs.map(d=>`<div class="doc-row">
+      <div class="d-ico">📎</div>
+      <div class="d-main">
+        <div class="d-name">${esc(d.original_name)}</div>
+        <div class="d-meta">${Math.round((d.size_bytes||0)/1024)} KB · ${new Date(d.created_at).toLocaleDateString(lang==='de'?'de-DE':'en-GB')}</div>
+      </div>
+      <button type="button" class="btn btn-ghost" onclick="downloadDoc('${esc(d.id)}')">Herunterladen</button>
+    </div>`).join('')||'<div class="no-results">Keine Dokumente vorhanden.</div>';
+    bindDocUploadDrop();
+  }catch(e){apiToast(e.message)}
+}
+async function downloadDoc(id){
+  try{
+    // Cookie-Session: same-origin navigation reicht
+    window.location.href='/api/documents/'+encodeURIComponent(id)+'/download';
+  }catch(e){apiToast(e.message)}
+}
+window.downloadDoc=downloadDoc;
+
+async function uploadDocument(event){
+  const input=event?.target || document.getElementById('doc-file-input');
+  const file=input?.files?.[0];
+  if(!file) return;
+  if(file.size > 25*1024*1024){apiToast('Datei ist größer als 25 MB.');input.value='';return;}
+  try{
+    if(!trassaCsrf){
+      const c=await fetch(TRASSA_API+'/csrf',{credentials:'same-origin'});
+      trassaCsrf=(await c.json()).csrfToken;
+    }
+    const fd=new FormData();
+    fd.append('file', file);
+    const res=await fetch(TRASSA_API+'/documents',{
+      method:'POST',
+      credentials:'same-origin',
+      headers:{'X-CSRF-Token':trassaCsrf||''},
+      body:fd
+    });
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error||'Upload fehlgeschlagen');
+    apiToast('Dokument hochgeladen: '+(data.document?.original_name||file.name));
+    input.value='';
+    await renderDocuments();
+  }catch(e){apiToast(e.message||'Upload fehlgeschlagen');input.value='';}
+}
+window.uploadDocument=uploadDocument;
+
+function bindDocUploadDrop(){
+  const box=document.getElementById('doc-upload-box');
+  if(!box || box.dataset.dropBound==='1') return;
+  box.dataset.dropBound='1';
+  box.addEventListener('dragover', (e)=>{e.preventDefault();box.classList.add('dragover');});
+  box.addEventListener('dragleave', ()=>box.classList.remove('dragover'));
+  box.addEventListener('drop', (e)=>{
+    e.preventDefault();
+    box.classList.remove('dragover');
+    const file=e.dataTransfer?.files?.[0];
+    if(!file) return;
+    const input=document.getElementById('doc-file-input');
+    if(!input) return;
+    const dt=new DataTransfer();
+    dt.items.add(file);
+    input.files=dt.files;
+    uploadDocument({target:input});
+  });
+}
+
 
 async function renderBilling(){try{const out=await api('/billing');document.getElementById('bill-kpi-grid').innerHTML=`<div class="stat-card"><div class="stat-label">Rechnungen</div><div class="stat-value">${out.invoices.length}</div><div class="stat-sub">Gesamt</div></div><div class="stat-card"><div class="stat-label">Offen</div><div class="stat-value">${out.stats.open}</div><div class="stat-sub">Unbezahlt</div></div><div class="stat-card"><div class="stat-label">Bezahlt</div><div class="stat-value">${out.stats.paid}</div><div class="stat-sub">Abgeschlossen</div></div>`;document.getElementById('invoice-list').innerHTML=out.invoices.map(i=>`<tr><td class="mono">${esc(i.invoice_number)}</td><td>${esc(i.type)}</td><td>${(i.amount_cents/100).toLocaleString('de-DE',{style:'currency',currency:'EUR'})}</td><td class="mono">${esc(i.invoice_date)}</td><td><span class="status-badge ${statusClass[i.status]||'grey'}">${esc(i.status)}</span></td></tr>`).join('')}catch(e){apiToast(e.message)}}
 async function loadSettings(){try{const out=await api('/settings');const c=out.company;document.getElementById('set-company').value=c.name||'';document.getElementById('set-contact').value=c.contact_name||'';document.getElementById('set-email').value=trassaUser.email||'';document.getElementById('set-phone').value=c.phone||'';const a=document.querySelector('#settings-form input[name=notification_offers]');if(a)a.checked=c.notification_offers}catch(e){apiToast(e.message)}}
