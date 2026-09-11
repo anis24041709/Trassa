@@ -370,7 +370,7 @@
     padding:11px 12px;font-size:14px;border-radius:2px;font-family:var(--body);resize:vertical;min-height:90px;
   }
   .field textarea:focus{outline:none;border-color:var(--amber);}
-  .field input[type="date"]{color-scheme:dark;}
+  .field input[type="date"]{color-scheme:light;}
 
   .upload-box{
     border:1.5px dashed var(--line);border-radius:var(--radius);
@@ -1473,6 +1473,57 @@ body.app-mode .doc-row .d-meta{font-size:11px!important;color:var(--text-faint)!
 body.app-mode .app-sidebar .logo{font-size:15px!important;letter-spacing:0!important;gap:10px!important}
 @media(max-width:760px){.trassa-logo-mark{width:32px;height:32px;flex-basis:32px}.trassa-logo-word{font-size:18px}}
 </style>
+
+<style id="trassa-date-pickers">
+/* Native calendar pickers – klar sichtbar */
+input[type="date"]{
+  color-scheme: light !important;
+  min-height: 36px !important;
+  min-width: 150px !important;
+  padding: 6px 10px !important;
+  border: 1px solid var(--line, #d0d5e0) !important;
+  border-radius: 6px !important;
+  background: #fff !important;
+  color: #111827 !important;
+  font-family: inherit !important;
+  font-size: 13px !important;
+  cursor: pointer !important;
+}
+input[type="date"]:focus{
+  border-color: #4f46e5 !important;
+  box-shadow: 0 0 0 3px rgba(79,70,229,.12) !important;
+  outline: none !important;
+}
+input[type="date"]::-webkit-calendar-picker-indicator{
+  cursor: pointer !important;
+  opacity: 1 !important;
+  filter: none !important;
+  width: 18px !important;
+  height: 18px !important;
+}
+.date-filter-label{
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 3px !important;
+  font-size: 10.5px !important;
+  font-weight: 600 !important;
+  color: #6b7280 !important;
+  text-transform: uppercase !important;
+  letter-spacing: .04em !important;
+}
+.date-filter-label input[type="date"]{
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  font-weight: 500 !important;
+  color: #111827 !important;
+}
+body.app-mode .field input[type="date"],
+body.app-mode .form-grid-4 input[type="date"]{
+  color-scheme: light !important;
+  background: #fff !important;
+}
+</style>
+
 </head>
 <body>
 
@@ -1720,6 +1771,12 @@ body.app-mode .app-sidebar .logo{font-size:15px!important;letter-spacing:0!impor
       <select id="f-land" onchange="renderRequests()"></select>
       <select id="f-wagenart" onchange="renderRequests()"></select>
       <select id="f-gefahrgut" onchange="renderRequests()"></select>
+      <label class="date-filter-label">Zeitraum von
+        <input id="f-von" type="date" onchange="onPeriodChange('f-von','f-bis');renderRequests()">
+      </label>
+      <label class="date-filter-label">Zeitraum bis
+        <input id="f-bis" type="date" onchange="onPeriodChange('f-von','f-bis');renderRequests()">
+      </label>
       <input id="f-search" type="text" oninput="renderRequests()" data-i18n-ph="filter_search_ph" placeholder="Strecke suchen …">
     </div>
     <div class="req-list" id="req-list"></div>
@@ -1887,6 +1944,12 @@ body.app-mode .app-sidebar .logo{font-size:15px!important;letter-spacing:0!impor
         <select id="m-f-land" onchange="renderMarketRequests()"></select>
         <select id="m-f-wagenart" onchange="renderMarketRequests()"></select>
         <select id="m-f-gefahrgut" onchange="renderMarketRequests()"></select>
+        <label class="date-filter-label">Zeitraum von
+          <input id="m-f-von" type="date" onchange="onPeriodChange('m-f-von','m-f-bis');renderMarketRequests()">
+        </label>
+        <label class="date-filter-label">Zeitraum bis
+          <input id="m-f-bis" type="date" onchange="onPeriodChange('m-f-von','m-f-bis');renderMarketRequests()">
+        </label>
         <input id="m-f-search" type="text" oninput="renderMarketRequests()" data-i18n-ph="filter_search_ph" placeholder="Strecke suchen …">
       </div>
       <div class="req-list app-list" id="m-req-list"></div>
@@ -1949,11 +2012,11 @@ body.app-mode .app-sidebar .logo{font-size:15px!important;letter-spacing:0!impor
             </div>
             <div class="field">
               <label data-i18n="nr_von">Zeitraum von</label>
-              <input type="date" id="nr-von">
+              <input type="date" id="nr-von" onchange="onPeriodChange('nr-von','nr-bis')">
             </div>
             <div class="field">
               <label data-i18n="nr_bis">Zeitraum bis</label>
-              <input type="date" id="nr-bis">
+              <input type="date" id="nr-bis" onchange="onPeriodChange('nr-von','nr-bis')">
             </div>
           </div>
           <div class="form-grid-4">
@@ -3399,5 +3462,22 @@ uploadBoxEl.addEventListener('drop', (e)=>{
 renderAll();
 </script>
 <script src="/api-adapter.js"></script>
+
+<script>
+function onPeriodChange(fromId, toId){
+  const from = document.getElementById(fromId);
+  const to = document.getElementById(toId);
+  if(!from || !to) return;
+  if(from.value) to.min = from.value;
+  else to.removeAttribute('min');
+  if(to.value) from.max = to.value;
+  else from.removeAttribute('max');
+  if(from.value && to.value && to.value < from.value){
+    to.value = from.value;
+  }
+}
+window.onPeriodChange = onPeriodChange;
+</script>
+
 </body>
 </html>

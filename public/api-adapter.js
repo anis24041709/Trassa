@@ -268,7 +268,7 @@ function renderMarketplaceActions(r){
       <form onsubmit="return submitMarketplaceOffer(event,'${esc(r.id)}')" class="panel" style="padding:18px;">
         <h3 style="margin:0 0 14px;">Angebot abgeben</h3>
         <div class="field"><label>Preis (€)</label><input id="market-offer-price" type="number" min="0" step="0.01" required placeholder="z. B. 12500,00"></div>
-        <div class="field"><label>Gültig bis</label><input id="market-offer-valid" type="date"></div>
+        <div class="field"><label>Gültig bis</label><input id="market-offer-valid" type="date" min=""></div>
         <div class="field"><label>Ansprechpartner</label><input id="market-offer-contact" type="text" maxlength="200" placeholder="Name"></div>
         <div class="field"><label>Hinweis / Konditionen</label><textarea id="market-offer-note" maxlength="5000" placeholder="Details zum Angebot"></textarea></div>
         <button class="btn btn-primary" type="submit">Angebot senden</button>
@@ -320,8 +320,19 @@ window.sendMarketplaceMessage=sendMarketplaceMessage;
 async function renderMarketRequests(){
   try{
     const q=document.getElementById('m-f-search')?.value.trim()||'';
+    const von=document.getElementById('m-f-von')?.value||'';
+    const bis=document.getElementById('m-f-bis')?.value||'';
     const out=await api('/requests'+(q?'?q='+encodeURIComponent(q):''));
-    const list=out.requests||[];
+    let list=out.requests||[];
+    if(von||bis){
+      list=list.filter(r=>{
+        const rf=(r.from_date||'').toString().slice(0,10);
+        const rt=(r.to_date||'').toString().slice(0,10);
+        if(von && rt && rt < von) return false;
+        if(bis && rf && rf > bis) return false;
+        return true;
+      });
+    }
     document.getElementById('m-req-list').innerHTML=list.map(r=>`<div class="req-row clickable" role="button" tabindex="0" onclick="openMarketplaceRequest('${esc(r.id)}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openMarketplaceRequest('${esc(r.id)}')}"><div><div class="r-route">${esc(r.route)}</div><div class="r-sub">#TR-${r.public_id} · ${esc(r.title)}</div></div><div class="r-field"><span class="k">Zeitraum</span>${esc((r.from_date||r.to_date)?`${r.from_date?formatDateDMY(r.from_date):'—'} – ${r.to_date?formatDateDMY(r.to_date):'—'}`:(r.zeit||'—'))}</div><div class="r-field"><span class="k">Gewicht</span>${esc(r.gewicht||'—')}</div><div class="r-field"><span class="k">Wagenart</span>${esc(requestDisplayValue(r.wagon_type))}</div><div class="req-badge ${r.gefahr?'gefahr':''}">${r.gefahr?'Gefahrgut':'Offen'}</div></div>`).join('')||'<div class="no-results">Keine Anfragen gefunden.</div>';
   }catch(e){apiToast(e.message)}
 }
