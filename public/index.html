@@ -617,7 +617,7 @@
   --accent:#4f46e5;
   --accent-hover:#4338ca;
   --accent-soft:#eef2ff;
-  --sidebar-w:64px;
+  --sidebar-w:220px;
 }
 
 *{box-sizing:border-box}
@@ -658,42 +658,72 @@ body.app-mode #app-view{display:flex!important;background:var(--bg)!important;mi
 body.app-mode .app-sidebar{
   width:var(--sidebar-w)!important;
   min-width:var(--sidebar-w)!important;
+  max-width:var(--sidebar-w)!important;
   background:#111827!important;
   border-right:1px solid #1f2937!important;
-  padding:10px 8px!important;
+  padding:14px 12px!important;
   color:#e5e7eb!important;
-}
-body.app-mode .app-sidebar .logo{
-  justify-content:center!important;
-  padding:10px 0 14px!important;
-  font-size:0!important;
-  border-bottom:1px solid #1f2937!important;
-  margin-bottom:10px!important;
-}
-body.app-mode .app-sidebar .logo .trassa-logo-word{display:none!important}
-body.app-mode .app-sidebar .logo .trassa-logo-mark{width:28px!important;height:28px!important;filter:none!important}
-body.app-mode .app-sidebar .logo .trassa-logo-mark path:first-child{fill:#818cf8!important}
-body.app-mode .app-nav{gap:3px!important}
-body.app-mode .app-nav-item{
+  overflow-x:hidden!important;
+  overflow-y:auto!important;
   display:flex!important;
   flex-direction:column!important;
+  box-sizing:border-box!important;
+}
+body.app-mode .app-sidebar .logo{
+  justify-content:flex-start!important;
   align-items:center!important;
-  justify-content:center!important;
-  gap:3px!important;
-  padding:10px 4px!important;
+  padding:6px 8px 16px!important;
+  font-size:16px!important;
+  border-bottom:1px solid #1f2937!important;
+  margin-bottom:12px!important;
+  gap:10px!important;
+  width:100%!important;
+}
+body.app-mode .app-sidebar .logo .trassa-logo-word{
+  display:inline-block!important;
+  color:#e5e7eb!important;
+  font-size:15px!important;
+  font-weight:800!important;
+  letter-spacing:.04em!important;
+}
+body.app-mode .app-sidebar .logo .trassa-logo-word>span{color:#a5b4fc!important}
+body.app-mode .app-sidebar .logo .trassa-logo-mark{width:28px!important;height:28px!important;flex:0 0 28px!important;filter:none!important}
+body.app-mode .app-sidebar .logo .trassa-logo-mark path:first-child{fill:#818cf8!important}
+body.app-mode .app-nav{gap:4px!important;flex:1!important;width:100%!important}
+body.app-mode .app-nav-item{
+  display:flex!important;
+  flex-direction:row!important;
+  align-items:center!important;
+  justify-content:flex-start!important;
+  gap:10px!important;
+  padding:10px 12px!important;
   margin:0!important;
   border:0!important;
-  border-radius:6px!important;
+  border-radius:8px!important;
   color:#9ca3af!important;
-  font-size:9px!important;
+  font-size:13px!important;
   font-weight:600!important;
   letter-spacing:0!important;
   text-transform:none!important;
-  line-height:1.15!important;
-  text-align:center!important;
-  min-height:52px!important;
+  line-height:1.2!important;
+  text-align:left!important;
+  min-height:40px!important;
+  width:100%!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  cursor:pointer!important;
+  box-sizing:border-box!important;
 }
-body.app-mode .app-nav-item .ico{font-size:16px!important;width:auto!important;filter:none!important;line-height:1}
+body.app-mode .app-nav-item .ico{
+  font-size:15px!important;
+  width:20px!important;
+  min-width:20px!important;
+  text-align:center!important;
+  filter:none!important;
+  line-height:1;
+  flex-shrink:0!important;
+}
 body.app-mode .app-nav-item:hover{background:#1f2937!important;color:#e5e7eb!important;transform:none!important}
 body.app-mode .app-nav-item.active{
   background:var(--accent)!important;
@@ -701,21 +731,30 @@ body.app-mode .app-nav-item.active{
   font-weight:700!important;
   box-shadow:0 4px 12px rgba(79,70,229,.35);
 }
-body.app-mode .app-sidebar-foot{border-top:1px solid #1f2937!important;padding:10px 0 0!important;margin-top:auto}
+body.app-mode .app-sidebar-foot{
+  border-top:1px solid #1f2937!important;
+  padding:12px 0 0!important;
+  margin-top:auto!important;
+  width:100%!important;
+}
 body.app-mode .app-logout{
   width:100%!important;
   border:0!important;
   background:transparent!important;
   color:#f87171!important;
-  font-size:9px!important;
+  font-size:13px!important;
+  font-weight:600!important;
   text-transform:none!important;
   letter-spacing:0!important;
-  padding:10px 4px!important;
-  border-radius:6px!important;
+  padding:10px 12px!important;
+  border-radius:8px!important;
   display:flex!important;
-  flex-direction:column!important;
+  flex-direction:row!important;
   align-items:center!important;
-  gap:3px!important;
+  justify-content:flex-start!important;
+  gap:10px!important;
+  cursor:pointer!important;
+  box-sizing:border-box!important;
 }
 body.app-mode .app-logout:hover{background:#7f1d1d!important;color:#fecaca!important}
 
@@ -954,7 +993,7 @@ section{background:var(--bg)!important;border-bottom-color:var(--line-soft)!impo
   body.app-mode .kpi-grid, body.app-mode .dashboard-kpis{grid-template-columns:repeat(3,minmax(0,1fr))!important}
 }
 @media(max-width:900px){
-  body.app-mode .app-sidebar{width:56px!important;min-width:56px!important}
+  body.app-mode .app-sidebar{width:200px!important;min-width:200px!important;max-width:200px!important}
   body.app-mode .dash-cols, body.app-mode .dashboard-primary,
   body.app-mode .dashboard-bottom-grid{grid-template-columns:1fr!important}
   body.app-mode .kpi-grid, body.app-mode .dashboard-kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}
@@ -1431,7 +1470,7 @@ body.app-mode .doc-row .d-meta{font-size:11px!important;color:var(--text-faint)!
 .trassa-logo-mark{width:36px;height:36px;display:block;flex:0 0 36px;filter:drop-shadow(0 2px 4px rgba(79,70,229,.2))}
 .trassa-logo-word{display:inline-block;color:#312e81!important;font-weight:900;letter-spacing:.06em;font-family:'IBM Plex Sans',system-ui,sans-serif}
 .trassa-logo-word>span{color:#4f46e5!important}
-body.app-mode .app-sidebar .logo{font-size:0!important;letter-spacing:0!important;gap:0!important}
+body.app-mode .app-sidebar .logo{font-size:15px!important;letter-spacing:0!important;gap:10px!important}
 @media(max-width:760px){.trassa-logo-mark{width:32px;height:32px;flex-basis:32px}.trassa-logo-word{font-size:18px}}
 </style>
 </head>
