@@ -332,19 +332,36 @@ async function renderOffers(){
     const out=await api('/offers');
     trassaOffers=out.offers||[];
     const myCompanyId=trassaUser?.company?.id;
-    document.getElementById('offers-list').innerHTML=trassaOffers.map((o)=>{
-      const isRequester=o.request_company===myCompanyId;
-      const isProvider=o.provider_company_id===myCompanyId;
+    const incoming=trassaOffers.filter(o=>(o.direction==='incoming')||(o.request_company===myCompanyId&&o.provider_company_id!==myCompanyId));
+    const outgoing=trassaOffers.filter(o=>(o.direction==='outgoing')||(o.provider_company_id===myCompanyId&&o.request_company!==myCompanyId));
+
+    function rowHtml(o){
+      const isRequester=o.request_company===myCompanyId || o.direction==='incoming';
+      const isProvider=o.provider_company_id===myCompanyId || o.direction==='outgoing';
       let actionsHtml='';
-      if(o.status==='pending'&&isRequester){
+      if(o.status==='pending'&&isRequester&&!isProvider){
         actionsHtml=`<div style="display:flex;gap:8px;"><button type="button" class="btn btn-primary" onclick="event.stopPropagation();offerActionById('${esc(o.id)}','accepted')">Annehmen</button><button type="button" class="btn btn-ghost" onclick="event.stopPropagation();offerActionById('${esc(o.id)}','declined')">Ablehnen</button></div>`;
       }else if(o.status==='pending'&&isProvider){
         actionsHtml=`<div style="display:flex;gap:8px;"><button type="button" class="btn btn-ghost" onclick="event.stopPropagation();offerActionById('${esc(o.id)}','withdrawn')">Zurückziehen</button></div>`;
       }else{
         actionsHtml=`<div class="status-badge ${statusClass[o.status]||'grey'}">${esc(offerStatusLabel(o.status))}</div>`;
       }
-      return `<div class="list-row clickable" data-offer-id="${esc(o.id)}" onclick="openRealOfferDetail('${esc(o.id)}')"><div><div class="l-main">${esc(o.route)}</div><div class="l-sub">${esc(o.partner)}</div></div><div class="l-field"><span class="k">Datum</span>${new Date(o.created_at||o.date).toLocaleDateString(lang==='de'?'de-DE':'en-GB')}</div><div class="l-field"><span class="k">Preis</span>${esc(o.price)}</div>${actionsHtml}</div>`;
-    }).join('')||'<div class="no-results">Keine Angebote vorhanden.</div>';
+      const partnerLabel=isRequester?'Anbieter':'Auftraggeber';
+      return `<div class="list-row clickable" data-offer-id="${esc(o.id)}" onclick="openRealOfferDetail('${esc(o.id)}')"><div><div class="l-main">${esc(o.route)}</div><div class="l-sub">${esc(partnerLabel)}: ${esc(o.partner)} · #TR-${esc(o.public_id||'')}</div></div><div class="l-field"><span class="k">Datum</span>${new Date(o.created_at||o.date).toLocaleDateString(lang==='de'?'de-DE':'en-GB')}</div><div class="l-field"><span class="k">Preis</span>${esc(o.price)}</div>${actionsHtml}</div>`;
+    }
+
+    const emptyIn='<div class="no-results">Keine eingegangenen Angebote.</div>';
+    const emptyOut='<div class="no-results">Keine abgegebenen Angebote.</div>';
+    const elIn=document.getElementById('offers-list-incoming');
+    const elOut=document.getElementById('offers-list-outgoing');
+    const elLegacy=document.getElementById('offers-list');
+    if(elIn) elIn.innerHTML=incoming.length?incoming.map(rowHtml).join(''):emptyIn;
+    if(elOut) elOut.innerHTML=outgoing.length?outgoing.map(rowHtml).join(''):emptyOut;
+    if(elLegacy) elLegacy.innerHTML='';
+    const cIn=document.getElementById('offers-incoming-count');
+    const cOut=document.getElementById('offers-outgoing-count');
+    if(cIn) cIn.textContent=incoming.length?`${incoming.length}`:'';
+    if(cOut) cOut.textContent=outgoing.length?`${outgoing.length}`:'';
   }catch(e){apiToast(e.message)}
 }
 

@@ -2029,7 +2029,25 @@ body.app-mode .app-sidebar .logo{font-size:15px!important;letter-spacing:0!impor
         <h1 data-i18n="p_offers_h1">Angebote</h1>
         <p data-i18n="p_offers_p">Eingegangene und abgegebene Angebote im Überblick.</p>
       </div>
-      <div class="list-panel" id="offers-list"></div>
+
+      <div class="panel" style="margin-bottom:12px;">
+        <div class="panel-head">
+          <h3>Eingegangene Angebote</h3>
+          <span id="offers-incoming-count" style="font-size:12px;color:var(--text-faint);font-weight:600;"></span>
+        </div>
+        <div class="list-panel" id="offers-list-incoming" style="border:0;border-radius:0;"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Abgegebene Angebote</h3>
+          <span id="offers-outgoing-count" style="font-size:12px;color:var(--text-faint);font-weight:600;"></span>
+        </div>
+        <div class="list-panel" id="offers-list-outgoing" style="border:0;border-radius:0;"></div>
+      </div>
+
+      <!-- legacy id for compatibility -->
+      <div id="offers-list" style="display:none;"></div>
     </div>
 
     <!-- Angebot detail panel -->
