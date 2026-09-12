@@ -223,6 +223,19 @@ const storage=multer.diskStorage({destination:(_,__,cb)=>cb(null,uploadDir),file
 const upload=multer({storage,limits:{fileSize:MAX_UPLOAD_MB*1024*1024},fileFilter:(_,file,cb)=>{const allowed=['application/pdf','image/jpeg','image/png','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/msword','application/vnd.ms-excel','text/plain'];cb(null,allowed.includes(file.mimetype));}});
 app.get('/api/documents',auth,async(req,res)=>{const a=[req.user.companyId];let sql='SELECT id,original_name,mime_type,size_bytes,sha256,created_at,request_id FROM documents WHERE company_id=$1';if(req.query.request_id){a.push(req.query.request_id);sql+=' AND request_id=$'+a.length;}sql+=' ORDER BY created_at DESC';const q=await pool.query(sql,a);res.json({documents:q.rows});});
 app.post('/api/documents',auth,requireCsrf,upload.single('file'),async(req,res)=>{if(!req.file)return res.status(400).json({error:'Datei fehlt oder Dateityp nicht erlaubt'});let requestId=req.body.request_id||null;if(requestId){const rq=await pool.query('SELECT id,company_id FROM requests WHERE id=$1',[requestId]);if(!rq.rowCount)return res.status(400).json({error:'Anfrage nicht gefunden'});if(rq.rows[0].company_id!==req.user.companyId&&!req.userRow.is_admin)return res.status(403).json({error:'Dokumente können nur vom Anfrage-Eigentümer verknüpft werden'});}const hash=crypto.createHash('sha256').update(fs.readFileSync(req.file.path)).digest('hex');try{const q=await pool.query('INSERT INTO documents(company_id,request_id,original_name,stored_name,mime_type,size_bytes,sha256) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,original_name,mime_type,size_bytes,created_at,request_id',[req.user.companyId,requestId,req.file.originalname,req.file.filename,req.file.mimetype,req.file.size,hash]);await audit(req,'document_uploaded','document',q.rows[0].id);res.status(201).json({document:q.rows[0]});}catch(e){fs.rmSync(req.file.path,{force:true});throw e;}});
+app.patch('/api/documents/:id',auth,requireCsrf,async(req,res)=>{
+  const q=await pool.query('SELECT * FROM documents WHERE id=$1 AND company_id=$2',[req.params.id,req.user.companyId]);
+  if(!q.rowCount) return res.status(404).json({error:'Dokument nicht gefunden'});
+  let requestId=req.body.request_id||null;
+  if(requestId){
+    const rq=await pool.query('SELECT id,company_id FROM requests WHERE id=$1',[requestId]);
+    if(!rq.rowCount) return res.status(400).json({error:'Anfrage nicht gefunden'});
+    if(rq.rows[0].company_id!==req.user.companyId && !req.userRow.is_admin) return res.status(403).json({error:'Nicht berechtigt'});
+  }
+  const u=await pool.query('UPDATE documents SET request_id=$1 WHERE id=$2 RETURNING id,original_name,request_id,mime_type,size_bytes,created_at',[requestId,req.params.id]);
+  await audit(req,'document_linked','document',req.params.id,{request_id:requestId});
+  res.json({document:u.rows[0]});
+});
 app.get('/api/documents/:id/download',auth,async(req,res)=>{const q=await pool.query('SELECT * FROM documents WHERE id=$1 AND company_id=$2',[req.params.id,req.user.companyId]);if(!q.rowCount)return res.status(404).end();const f=path.resolve(uploadDir,path.basename(String(q.rows[0].stored_name||'')));if(!f.startsWith(path.resolve(uploadDir)+path.sep)&&f!==path.resolve(uploadDir))return res.status(404).end();if(!fs.existsSync(f))return res.status(404).end();res.download(f,q.rows[0].original_name);});
 
 app.get('/api/billing',auth,async(req,res)=>{const q=await pool.query('SELECT * FROM invoices WHERE company_id=$1 ORDER BY invoice_date DESC',[req.user.companyId]);const total=q.rows.reduce((s,x)=>s+x.amount_cents,0);res.json({stats:{total:(total/100).toFixed(2),open:q.rows.filter(x=>x.status==='open').length,paid:q.rows.filter(x=>x.status==='paid').length},invoices:q.rows});});

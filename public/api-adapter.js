@@ -256,25 +256,40 @@ function renderRealRequestDetail(r, docs){
   }
   document.getElementById('req-detail-actions').innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">${parts.join('')}</div>`;
 
-  // Dokumente anzeigen
+  // Dokumente anzeigen + frisch nachladen
   const docsEl=document.getElementById('req-detail-docs');
   const uploadWrap=document.getElementById('req-detail-docs-upload');
-  const docList=Array.isArray(docs)?docs:(window.__trassaCurrentRequestDocs||[]);
-  if(docsEl){
-    if(!docList.length){
-      docsEl.innerHTML='<div class="no-results" style="padding:12px;">Keine Dokumente zu dieser Anfrage.</div>';
-    }else{
-      docsEl.innerHTML=docList.map(d=>`<div class="doc-row">
-        <div class="d-ico">📎</div>
-        <div class="d-main">
-          <div class="d-name">${esc(d.original_name)}</div>
-          <div class="d-meta">${Math.round((d.size_bytes||0)/1024)} KB · ${new Date(d.created_at).toLocaleDateString(lang==='de'?'de-DE':'en-GB')}</div>
-        </div>
-        <button type="button" class="btn btn-ghost" onclick="downloadDoc('${esc(d.id)}')">Herunterladen</button>
-      </div>`).join('');
+  function paintReqDocs(list){
+    window.__trassaCurrentRequestDocs=list||[];
+    if(!docsEl) return;
+    if(!list || !list.length){
+      docsEl.innerHTML='<div class="no-results" style="padding:12px;">Keine Dokumente zu dieser Anfrage.<br><span style="font-size:12px;color:#6b7280">Laden Sie Dateien hier hoch oder unter Dokumente mit Anfrage-Verknüpfung.</span></div>';
+      return;
     }
+    docsEl.innerHTML=list.map(d=>`<div class="doc-row">
+      <div class="d-ico">📎</div>
+      <div class="d-main">
+        <div class="d-name">${esc(d.original_name)}</div>
+        <div class="d-meta">${Math.round((d.size_bytes||0)/1024)} KB · ${new Date(d.created_at).toLocaleDateString(lang==='de'?'de-DE':'en-GB')}</div>
+      </div>
+      <button type="button" class="btn btn-ghost" onclick="downloadDoc('${esc(d.id)}')">Herunterladen</button>
+    </div>`).join('');
   }
-  // Upload nur für Eigentümer der Anfrage
+  let docList=Array.isArray(docs)&&docs.length ? docs : (window.__trassaCurrentRequestDocs||[]);
+  paintReqDocs(docList);
+  if(r && r.id){
+    (async()=>{
+      try{
+        const out=await api('/requests/'+encodeURIComponent(r.id));
+        paintReqDocs(out.documents||[]);
+      }catch(_){
+        try{
+          const all=await api('/documents?request_id='+encodeURIComponent(r.id));
+          paintReqDocs(all.documents||[]);
+        }catch(__){}
+      }
+    })();
+  }
   myCompanyId=trassaUser?.company?.id;
   isOwner=r && (r.company_id===myCompanyId);
   if(uploadWrap) uploadWrap.style.display=isOwner?'block':'none';
@@ -917,15 +932,28 @@ async function renderDocuments(){
   try{
     const out=await api('/documents');
     trassaDocs=out.documents||[];
+    // Anfragen für Verknüpfungs-Select laden
+    try{
+      const rq=await api('/requests?mine=true');
+      const sel=document.getElementById('doc-link-request');
+      if(sel){
+        const cur=sel.value;
+        sel.innerHTML='<option value="">— Keine Verknüpfung —</option>'+(rq.requests||[]).map(r=>`<option value="${esc(r.id)}">#TR-${esc(r.public_id)} · ${esc(r.route||r.title||'')}</option>`).join('');
+        if(cur) sel.value=cur;
+        if(!cur && window.__trassaCurrentRequest?.id) sel.value=window.__trassaCurrentRequest.id;
+      }
+    }catch(_){}
     const list=document.getElementById('doc-list');
     if(!list) return;
     list.innerHTML=trassaDocs.map(d=>`<div class="doc-row">
       <div class="d-ico">📎</div>
       <div class="d-main">
         <div class="d-name">${esc(d.original_name)}</div>
-        <div class="d-meta">${Math.round((d.size_bytes||0)/1024)} KB · ${new Date(d.created_at).toLocaleDateString(lang==='de'?'de-DE':'en-GB')}${d.request_id?` · Anfrage ${esc(String(d.request_id).slice(0,8))}…`:''}</div>
+        <div class="d-meta">${Math.round((d.size_bytes||0)/1024)} KB · ${new Date(d.created_at).toLocaleDateString(lang==='de'?'de-DE':'en-GB')}${d.request_id?` · verknüpft`:''}</div>
       </div>
-      ${d.request_id?`<button type="button" class="btn btn-ghost" onclick="openRequestDetailById('${esc(d.request_id)}')">Zur Anfrage</button>`:''}
+      ${d.request_id
+        ? `<button type="button" class="btn btn-ghost" onclick="openRequestDetailById('${esc(d.request_id)}')">Zur Anfrage</button>`
+        : `<button type="button" class="btn btn-ghost" onclick="linkDocToCurrentRequest('${esc(d.id)}')">An Anfrage hängen</button>`}
       <button type="button" class="btn btn-ghost" onclick="downloadDoc('${esc(d.id)}')">Herunterladen</button>
     </div>`).join('')||'<div class="no-results">Keine Dokumente vorhanden.</div>';
     bindDocUploadDrop();
@@ -951,6 +979,12 @@ async function uploadDocument(event){
     }
     const fd=new FormData();
     fd.append('file', file);
+    // Wenn eine Anfrage geöffnet ist, Dokument direkt verknüpfen
+    const rid=window.__trassaCurrentRequest?.id;
+    if(rid) fd.append('request_id', rid);
+    // Optional: Auswahl aus Dokumente-Panel
+    const sel=document.getElementById('doc-link-request');
+    if(sel && sel.value) fd.append('request_id', sel.value);
     const res=await fetch(TRASSA_API+'/documents',{
       method:'POST',
       credentials:'same-origin',
@@ -962,6 +996,7 @@ async function uploadDocument(event){
     apiToast('Dokument hochgeladen: '+(data.document?.original_name||file.name));
     input.value='';
     await renderDocuments();
+    if(rid) await openRequestDetailById(rid);
   }catch(e){apiToast(e.message||'Upload fehlgeschlagen');input.value='';}
 }
 window.uploadDocument=uploadDocument;
@@ -1059,6 +1094,9 @@ if(typeof panelRenderers==='object'&&panelRenderers){
   panelRenderers.abrechnung=function(){ if(trassaUser) renderBilling(); };
   panelRenderers.einstellungen=function(){ if(trassaUser) loadSettings(); };
   panelRenderers['angebot-detail']=function(){};
+  panelRenderers['anfrage-detail']=function(){
+    if(window.__trassaCurrentRequest) renderRealRequestDetail(window.__trassaCurrentRequest, window.__trassaCurrentRequestDocs||[]);
+  };
 }
 
 const oldSwitchAppPanel=window.switchAppPanel;
