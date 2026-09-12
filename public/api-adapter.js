@@ -1,4 +1,12 @@
-const statusClass={draft:'grey',new:'amber',progress:'amber',awarded:'green',cancelled:'red',pending:'amber',accepted:'green',declined:'red',withdrawn:'grey',planned:'amber',underway:'amber',done:'green'};
+/* status badges – extend global map from index.html (avoid const redeclare) */
+(function(){
+  const extra={draft:'grey',new:'amber',progress:'amber',awarded:'green',cancelled:'red',pending:'amber',accepted:'green',declined:'red',withdrawn:'grey',planned:'amber',underway:'amber',done:'green',paid:'green',open:'blue'};
+  if(typeof statusClass==='object' && statusClass){
+    Object.assign(statusClass, extra);
+  } else {
+    window.statusClass = extra;
+  }
+})();
 /* TRASSA production client adapter: replaces demo/local state with the REST API. */
 const TRASSA_API = '/api';
 let trassaUser = null;
