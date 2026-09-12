@@ -591,32 +591,32 @@
 </style>
 
 
-<style id="trassa-v414-compact-ops">
-/* TRASSA V4.14 – Design 4: Compact Dense Ops */
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+<style id="trassa-v414-soft-green">
+/* TRASSA V4.14 – Design 3: Soft Logistics Green */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
 :root{
-  --bg:#eef0f4 !important;
+  --bg:#f3f7f4 !important;
   --bg-raised:#ffffff !important;
   --surface:#ffffff !important;
-  --surface-2:#e8eaf0 !important;
-  --line:#d0d5e0 !important;
-  --line-soft:#e2e5ed !important;
-  --text:#111827 !important;
-  --text-dim:#4b5563 !important;
-  --text-faint:#6b7280 !important;
-  --amber:#4f46e5 !important;
-  --amber-dim:#c7d2fe !important;
-  --green:#059669 !important;
-  --green-dim:#d1fae5 !important;
+  --surface-2:#e7f2ea !important;
+  --line:#cfe0d4 !important;
+  --line-soft:#e4eee7 !important;
+  --text:#14301f !important;
+  --text-dim:#4a6354 !important;
+  --text-faint:#6b8573 !important;
+  --amber:#1a9b6c !important;
+  --amber-dim:#b7e6cf !important;
+  --green:#0f8a5f !important;
+  --green-dim:#d8f5e7 !important;
   --red:#dc2626 !important;
-  --radius:8px !important;
-  --display:'IBM Plex Sans',ui-sans-serif,system-ui,sans-serif !important;
-  --body:'IBM Plex Sans',ui-sans-serif,system-ui,sans-serif !important;
+  --radius:14px !important;
+  --display:'DM Sans',ui-sans-serif,system-ui,sans-serif !important;
+  --body:'DM Sans',ui-sans-serif,system-ui,sans-serif !important;
   --mono:'IBM Plex Mono',ui-monospace,monospace !important;
-  --accent:#4f46e5;
-  --accent-hover:#4338ca;
-  --accent-soft:#eef2ff;
+  --accent:#1a9b6c;
+  --accent-hover:#147a56;
+  --accent-soft:#e5f6ee;
   --sidebar-w:220px;
 }
 
@@ -627,7 +627,7 @@ h1,h2,h3,h4{font-family:var(--display)!important;text-transform:none!important;l
 
 /* Public marketing header */
 header{background:rgba(255,255,255,.97)!important;border-bottom:1px solid var(--line)!important;box-shadow:0 1px 0 rgba(15,23,42,.04)}
-.logo,.trassa-logo-word{color:#312e81!important;font-weight:800!important;letter-spacing:.04em!important}
+.logo,.trassa-logo-word{color:#0f3d28!important;font-weight:800!important;letter-spacing:.04em!important}
 .trassa-logo-word>span{color:var(--accent)!important}
 .nav-links a{color:var(--text-dim)!important;text-transform:none!important;letter-spacing:0!important;font-weight:600!important;font-size:13px}
 .nav-links a:hover{color:var(--accent)!important}
@@ -641,13 +641,13 @@ header{background:rgba(255,255,255,.97)!important;border-bottom:1px solid var(--
 .btn-primary{background:var(--accent)!important;color:#fff!important;border:1px solid var(--accent)!important}
 .btn-primary:hover{background:var(--accent-hover)!important}
 .btn-ghost{background:#fff!important;border:1px solid var(--line)!important;color:var(--text-dim)!important}
-.btn-ghost:hover{background:var(--accent-soft)!important;border-color:#a5b4fc!important;color:var(--accent)!important}
+.btn-ghost:hover{background:var(--accent-soft)!important;border-color:#8fd4b0!important;color:var(--accent)!important}
 
 /* Auth modal */
 .modal{background:#fff!important;border:1px solid var(--line)!important;border-radius:10px!important;box-shadow:0 20px 50px rgba(15,23,42,.12)!important}
 .modal-tab.active{background:var(--accent)!important;color:#fff!important}
 .field input,.field select,.field textarea{background:#fff!important;border:1px solid var(--line)!important;border-radius:6px!important;color:var(--text)!important;font-size:13.5px!important}
-.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--accent)!important;box-shadow:0 0 0 3px rgba(79,70,229,.15)!important;outline:none}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--accent)!important;box-shadow:0 0 0 3px rgba(26,155,108,.15)!important;outline:none}
 
 /* ========== APP SHELL ========== */
 body.app-mode{background:var(--bg)!important}
@@ -659,10 +659,10 @@ body.app-mode .app-sidebar{
   width:var(--sidebar-w)!important;
   min-width:var(--sidebar-w)!important;
   max-width:var(--sidebar-w)!important;
-  background:#111827!important;
-  border-right:1px solid #1f2937!important;
+  background:#ffffff!important;
+  border-right:1px solid #cfe0d4!important;
   padding:14px 12px!important;
-  color:#e5e7eb!important;
+  color:#14301f!important;
   overflow-x:hidden!important;
   overflow-y:auto!important;
   display:flex!important;
@@ -674,21 +674,21 @@ body.app-mode .app-sidebar .logo{
   align-items:center!important;
   padding:6px 8px 16px!important;
   font-size:16px!important;
-  border-bottom:1px solid #1f2937!important;
+  border-bottom:1px solid #e4eee7!important;
   margin-bottom:12px!important;
   gap:10px!important;
   width:100%!important;
 }
 body.app-mode .app-sidebar .logo .trassa-logo-word{
   display:inline-block!important;
-  color:#e5e7eb!important;
+  color:#0f3d28!important;
   font-size:15px!important;
   font-weight:800!important;
   letter-spacing:.04em!important;
 }
-body.app-mode .app-sidebar .logo .trassa-logo-word>span{color:#a5b4fc!important}
+body.app-mode .app-sidebar .logo .trassa-logo-word>span{color:#8fd4b0!important}
 body.app-mode .app-sidebar .logo .trassa-logo-mark{width:28px!important;height:28px!important;flex:0 0 28px!important;filter:none!important}
-body.app-mode .app-sidebar .logo .trassa-logo-mark path:first-child{fill:#818cf8!important}
+body.app-mode .app-sidebar .logo .trassa-logo-mark path:first-child{fill:#3cb88a!important}
 body.app-mode .app-nav{gap:4px!important;flex:1!important;width:100%!important}
 body.app-mode .app-nav-item{
   display:flex!important;
@@ -699,8 +699,8 @@ body.app-mode .app-nav-item{
   padding:10px 12px!important;
   margin:0!important;
   border:0!important;
-  border-radius:8px!important;
-  color:#9ca3af!important;
+  border-radius:12px!important;
+  color:#4a6354!important;
   font-size:13px!important;
   font-weight:600!important;
   letter-spacing:0!important;
@@ -724,15 +724,16 @@ body.app-mode .app-nav-item .ico{
   line-height:1;
   flex-shrink:0!important;
 }
-body.app-mode .app-nav-item:hover{background:#1f2937!important;color:#e5e7eb!important;transform:none!important}
+body.app-mode .app-nav-item:hover{background:#e5f6ee!important;color:#0f3d28!important;transform:none!important}
 body.app-mode .app-nav-item.active{
-  background:var(--accent)!important;
-  color:#fff!important;
+  background:#e5f6ee!important;
+  color:#147a56!important;
   font-weight:700!important;
-  box-shadow:0 4px 12px rgba(79,70,229,.35);
+  box-shadow:none;
+  border:1px solid #b7e6cf!important;
 }
 body.app-mode .app-sidebar-foot{
-  border-top:1px solid #1f2937!important;
+  border-top:1px solid #e4eee7!important;
   padding:12px 0 0!important;
   margin-top:auto!important;
   width:100%!important;
@@ -786,14 +787,14 @@ body.app-mode .portal-search input{
   font-size:12.5px!important;
   color:var(--text)!important;
 }
-body.app-mode .portal-search input:focus{border-color:var(--accent)!important;background:#fff!important;outline:none;box-shadow:0 0 0 3px rgba(79,70,229,.12)}
+body.app-mode .portal-search input:focus{border-color:var(--accent)!important;background:#fff!important;outline:none;box-shadow:0 0 0 3px rgba(26,155,108,.12)}
 body.app-mode .portal-header-actions{margin-left:auto!important;display:flex!important;align-items:center!important;gap:8px!important}
 body.app-mode .portal-icon-btn{
   width:32px!important;height:32px!important;border-radius:6px!important;
   border:1px solid var(--line)!important;background:#fff!important;color:var(--text-dim)!important;
   display:grid!important;place-items:center!important;font-size:14px!important;
 }
-body.app-mode .portal-icon-btn:hover{border-color:#a5b4fc!important;color:var(--accent)!important}
+body.app-mode .portal-icon-btn:hover{border-color:#8fd4b0!important;color:var(--accent)!important}
 body.app-mode .portal-account{
   display:flex!important;align-items:center!important;gap:8px!important;
   padding:4px 8px 4px 4px!important;border:1px solid var(--line)!important;
@@ -826,9 +827,9 @@ body.app-mode .kpi-grid, body.app-mode .dashboard-kpis{
 body.app-mode .kpi-card{
   background:#fff!important;
   border:1px solid var(--line)!important;
-  border-radius:8px!important;
-  padding:10px 12px!important;
-  box-shadow:none!important;
+  border-radius:14px!important;
+  padding:14px 16px!important;
+  box-shadow:0 4px 18px rgba(20,80,50,.05)!important;
   min-height:0!important;
   position:relative!important;
 }
@@ -860,8 +861,8 @@ body.app-mode .kpi-card::after{
 body.app-mode .panel, body.app-mode .dashboard-box{
   background:#fff!important;
   border:1px solid var(--line)!important;
-  border-radius:8px!important;
-  box-shadow:none!important;
+  border-radius:14px!important;
+  box-shadow:0 4px 18px rgba(20,80,50,.05)!important;
   padding:0!important;
   overflow:hidden!important;
 }
@@ -931,7 +932,7 @@ body.app-mode .action-tiles button, body.app-mode .useful-links>button{
   cursor:pointer!important;
 }
 body.app-mode .action-tiles button:hover, body.app-mode .useful-links>button:hover{
-  border-color:#a5b4fc!important;background:var(--accent-soft)!important;color:var(--accent)!important;
+  border-color:#8fd4b0!important;background:var(--accent-soft)!important;color:var(--accent)!important;
 }
 body.app-mode .action-tiles button span{margin-right:6px;opacity:.7}
 body.app-mode .useful-links{padding:8px!important}
@@ -973,7 +974,7 @@ body.app-mode .detail-grid, body.app-mode .step-block .panel{
   background:#fff!important;border:1px solid var(--line)!important;border-radius:8px!important;
 }
 body.app-mode .offer-chat-thread{background:#f9fafb!important;border-color:var(--line-soft)!important;height:280px!important}
-body.app-mode .offer-chat-message.out{background:var(--accent-soft)!important;border-color:#c7d2fe!important;color:#312e81!important}
+body.app-mode .offer-chat-message.out{background:var(--accent-soft)!important;border-color:#b7e6cf!important;color:#0f3d28!important}
 body.app-mode .offer-chat-message.in{background:#fff!important;border-color:var(--line)!important}
 body.app-mode .detail-item .k{font-size:10px!important;color:var(--text-faint)!important;text-transform:uppercase!important;letter-spacing:.04em}
 body.app-mode .detail-item .v{font-size:13px!important;font-weight:600!important}
@@ -1043,7 +1044,7 @@ body.app-mode .filter-bar input:focus,
 body.app-mode #m-f-search:focus{
   border-color:var(--accent)!important;
   background:#fff!important;
-  box-shadow:0 0 0 3px rgba(79,70,229,.12)!important;
+  box-shadow:0 0 0 3px rgba(26,155,108,.12)!important;
   outline:none!important;
 }
 
@@ -1198,8 +1199,8 @@ body.app-mode .offer-chat-message.in{
 body.app-mode .offer-chat-message.out{
   align-self:flex-end!important;
   background:var(--accent-soft)!important;
-  border:1px solid #c7d2fe!important;
-  color:#312e81!important;
+  border:1px solid #b7e6cf!important;
+  color:#0f3d28!important;
 }
 body.app-mode .offer-chat-message .meta{
   display:block!important;
@@ -1232,7 +1233,7 @@ body.app-mode .offer-chat-form input{
 }
 body.app-mode .offer-chat-form input:focus{
   border-color:var(--accent)!important;
-  box-shadow:0 0 0 3px rgba(79,70,229,.12)!important;
+  box-shadow:0 0 0 3px rgba(26,155,108,.12)!important;
   outline:none!important;
 }
 body.app-mode .offer-price-help{
@@ -1377,7 +1378,7 @@ body.app-mode .msg-input-row input:focus{
   border-color:var(--accent)!important;
   background:#fff!important;
   outline:none!important;
-  box-shadow:0 0 0 3px rgba(79,70,229,.12)!important;
+  box-shadow:0 0 0 3px rgba(26,155,108,.12)!important;
 }
 body.app-mode .msg-input-row .btn{padding:0 14px!important;height:36px!important}
 
@@ -1467,9 +1468,9 @@ body.app-mode .doc-row .d-meta{font-size:11px!important;color:var(--text-faint)!
 <style id="trassa-logo-v43">
 .logo{display:flex!important;align-items:center!important;gap:11px!important}
 .logo::before{content:none!important;display:none!important}
-.trassa-logo-mark{width:36px;height:36px;display:block;flex:0 0 36px;filter:drop-shadow(0 2px 4px rgba(79,70,229,.2))}
-.trassa-logo-word{display:inline-block;color:#312e81!important;font-weight:900;letter-spacing:.06em;font-family:'IBM Plex Sans',system-ui,sans-serif}
-.trassa-logo-word>span{color:#4f46e5!important}
+.trassa-logo-mark{width:36px;height:36px;display:block;flex:0 0 36px;filter:drop-shadow(0 2px 4px rgba(26,155,108,.2))}
+.trassa-logo-word{display:inline-block;color:#0f3d28!important;font-weight:900;letter-spacing:.06em;font-family:'DM Sans',system-ui,sans-serif}
+.trassa-logo-word>span{color:#1a9b6c!important}
 body.app-mode .app-sidebar .logo{font-size:15px!important;letter-spacing:0!important;gap:10px!important}
 @media(max-width:760px){.trassa-logo-mark{width:32px;height:32px;flex-basis:32px}.trassa-logo-word{font-size:18px}}
 </style>
@@ -1484,14 +1485,14 @@ input[type="date"]{
   border: 1px solid var(--line, #d0d5e0) !important;
   border-radius: 6px !important;
   background: #fff !important;
-  color: #111827 !important;
+  color: #0f2a1c !important;
   font-family: inherit !important;
   font-size: 13px !important;
   cursor: pointer !important;
 }
 input[type="date"]:focus{
-  border-color: #4f46e5 !important;
-  box-shadow: 0 0 0 3px rgba(79,70,229,.12) !important;
+  border-color: #1a9b6c !important;
+  box-shadow: 0 0 0 3px rgba(26,155,108,.12) !important;
   outline: none !important;
 }
 input[type="date"]::-webkit-calendar-picker-indicator{
@@ -1515,7 +1516,7 @@ input[type="date"]::-webkit-calendar-picker-indicator{
   text-transform: none !important;
   letter-spacing: 0 !important;
   font-weight: 500 !important;
-  color: #111827 !important;
+  color: #0f2a1c !important;
 }
 body.app-mode .field input[type="date"],
 body.app-mode .form-grid-4 input[type="date"]{
@@ -1527,7 +1528,7 @@ body.app-mode .form-grid-4 input[type="date"]{
 
 <style id="trassa-doc-upload">
 #doc-upload-box{cursor:pointer;transition:border-color .15s,background .15s;border:1px dashed var(--line,#d0d5e0);border-radius:8px;padding:28px 16px;text-align:center;background:#fff;margin-bottom:12px;}
-#doc-upload-box:hover,#doc-upload-box.dragover{border-color:#4f46e5;background:#eef2ff;}
+#doc-upload-box:hover,#doc-upload-box.dragover{border-color:#1a9b6c;background:#e5f6ee;}
 #doc-upload-box .ico{font-size:28px;margin-bottom:8px;}
 #doc-upload-box .txt{font-size:13.5px;font-weight:600;color:#374151;}
 body.app-mode .doc-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid var(--line-soft,#e2e5ed);background:#fff;}
@@ -1541,7 +1542,7 @@ body.app-mode .doc-row .d-meta{font-size:11px;color:#6b7280;font-family:var(--mo
 
 <header>
   <nav>
-    <div class="logo"><svg class="trassa-logo-mark" viewBox="0 0 64 64" aria-hidden="true"><path d="M25 5h14l18 54H45l-4-12H23l-4 12H7L25 5Z" fill="#4f46e5"/><path d="M29 13h6l3 9H26l3-9Zm-5 16h16l3 8H21l3-8Zm-6 16h28l3 8H15l3-8Z" fill="#fff"/><path d="M31 5h2v54h-2z" fill="#dff3ff" opacity=".95"/></svg><span class="trassa-logo-word">TRAS<span>SA</span></span></div>
+    <div class="logo"><svg class="trassa-logo-mark" viewBox="0 0 64 64" aria-hidden="true"><path d="M25 5h14l18 54H45l-4-12H23l-4 12H7L25 5Z" fill="#1a9b6c"/><path d="M29 13h6l3 9H26l3-9Zm-5 16h16l3 8H21l3-8Zm-6 16h28l3 8H15l3-8Z" fill="#fff"/><path d="M31 5h2v54h-2z" fill="#dff3ff" opacity=".95"/></svg><span class="trassa-logo-word">TRAS<span>SA</span></span></div>
     <div class="nav-links">
       <a href="#marktplatz" data-i18n="nav_market">Marktplatz</a>
       <a href="#ablauf" data-i18n="nav_process">Ablauf</a>
@@ -1580,7 +1581,7 @@ body.app-mode .doc-row .d-meta{font-size:11px;color:#6b7280;font-family:var(--mo
         <button type="submit" class="btn btn-primary" data-i18n="login_submit">Einloggen</button>
       </form>
       <div style="margin-top:10px;text-align:right;">
-        <a href="#" onclick="switchAuth('forgot');return false;" style="font-size:12.5px;color:var(--accent,#4f46e5);font-weight:600;" data-i18n="login_forgot">Passwort vergessen?</a>
+        <a href="#" onclick="switchAuth('forgot');return false;" style="font-size:12.5px;color:var(--accent,#1a9b6c);font-weight:600;" data-i18n="login_forgot">Passwort vergessen?</a>
       </div>
       <div class="modal-msg" id="msg-login" data-i18n="login_msg">Fehler erscheinen hier.</div>
       <div class="modal-foot">
@@ -1855,7 +1856,7 @@ body.app-mode .doc-row .d-meta{font-size:11px;color:#6b7280;font-family:var(--mo
 
 <div id="app-view">
   <aside class="app-sidebar">
-    <div class="logo"><svg class="trassa-logo-mark" viewBox="0 0 64 64" aria-hidden="true"><path d="M25 5h14l18 54H45l-4-12H23l-4 12H7L25 5Z" fill="#4f46e5"/><path d="M29 13h6l3 9H26l3-9Zm-5 16h16l3 8H21l3-8Zm-6 16h28l3 8H15l3-8Z" fill="#fff"/><path d="M31 5h2v54h-2z" fill="#dff3ff" opacity=".95"/></svg><span class="trassa-logo-word">TRAS<span>SA</span></span></div>
+    <div class="logo"><svg class="trassa-logo-mark" viewBox="0 0 64 64" aria-hidden="true"><path d="M25 5h14l18 54H45l-4-12H23l-4 12H7L25 5Z" fill="#1a9b6c"/><path d="M29 13h6l3 9H26l3-9Zm-5 16h16l3 8H21l3-8Zm-6 16h28l3 8H15l3-8Z" fill="#fff"/><path d="M31 5h2v54h-2z" fill="#dff3ff" opacity=".95"/></svg><span class="trassa-logo-word">TRAS<span>SA</span></span></div>
     <nav class="app-nav" id="app-nav">
       <div class="app-nav-item active" data-panel="dashboard"><span class="ico">⌂</span><span data-i18n="sb_dashboard">Dashboard</span></div>
       <div class="app-nav-item" data-panel="marktplatz"><span class="ico">⌕</span><span data-i18n="sb_market">Marktplatz</span></div>
@@ -3507,7 +3508,7 @@ uploadBoxEl.addEventListener('drop', (e)=>{
 
 renderAll();
 </script>
-<script src="/api-adapter.js?v=418"></script>
+<script src="/api-adapter.js?v=419"></script>
 <script>
 (function(){
   // Adapter muss trassaSubmitAuth setzen
