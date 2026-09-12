@@ -1568,7 +1568,7 @@ body.app-mode .doc-row .d-meta{font-size:11px;color:#6b7280;font-family:var(--mo
     <div id="pane-login">
       <h3 data-i18n="login_h3">Willkommen zurück</h3>
       <p class="modal-sub" data-i18n="login_sub">Melden Sie sich an, um Anfragen und Angebote zu verwalten.</p>
-      <form onsubmit="return submitAuth(event,'login')">
+      <form onsubmit="return (window.trassaSubmitAuth||window.submitAuth)(event,'login')">
         <div class="field">
           <label data-i18n="field_email">E-Mail-Adresse</label>
           <input type="email" required data-i18n-ph="field_email_ph" placeholder="name@unternehmen.de">
@@ -1628,7 +1628,7 @@ body.app-mode .doc-row .d-meta{font-size:11px;color:#6b7280;font-family:var(--mo
 
     <div id="pane-register" style="display:none;">
       <h3 data-i18n="register_h3">Konto erstellen</h3>
-      <form onsubmit="return submitAuth(event,'register')">
+      <form onsubmit="return (window.trassaSubmitAuth||window.submitAuth)(event,'register')">
         <div class="field">
           <label data-i18n="field_first_name">Vorname</label>
           <input id="reg-first-name" type="text" required maxlength="100" autocomplete="given-name" data-i18n-ph="field_first_name_ph" placeholder="Max">
@@ -2996,16 +2996,22 @@ function switchAuth(mode){
   });
 }
 
-function submitAuth(event, mode){
-  // Echte Auth läuft über public/api-adapter.js (window.submitAuth).
-  // Fallback nur wenn Adapter fehlt:
+function submitAuthFallback(event, mode){
   event.preventDefault();
+  // Wenn Adapter da ist, weiterleiten
+  if(typeof window.trassaSubmitAuth === 'function'){
+    return window.trassaSubmitAuth(event, mode);
+  }
   const msg = document.getElementById('msg-' + mode);
   if(msg){
-    msg.textContent = 'API-Adapter nicht geladen. Bitte Seite neu laden.';
+    msg.textContent = 'API-Adapter nicht geladen. Bitte Seite neu laden (Strg+Shift+R).';
     msg.classList.add('show');
   }
   return false;
+}
+// Nur setzen, wenn Adapter noch nicht da
+if(typeof window.submitAuth !== 'function'){
+  window.submitAuth = submitAuthFallback;
 }
 
 document.addEventListener('keydown', (e)=>{
@@ -3489,7 +3495,50 @@ uploadBoxEl.addEventListener('drop', (e)=>{
 
 renderAll();
 </script>
-<script src="/api-adapter.js"></script>
+<script src="/api-adapter.js?v=414"></script>
+<script>
+(function(){
+  // Adapter muss trassaSubmitAuth setzen
+  if(typeof window.trassaSubmitAuth === 'function'){
+    window.submitAuth = window.trassaSubmitAuth;
+    console.info('[TRASSA] API-Adapter aktiv');
+  } else {
+    console.error('[TRASSA] api-adapter.js nicht geladen oder fehlerhaft');
+    // Minimaler Login-Fallback direkt gegen /api (ohne Adapter-Hilfsfunktionen)
+    window.submitAuth = window.trassaSubmitAuth = async function(event, mode){
+      event.preventDefault();
+      const form = event.target;
+      const msg = document.getElementById('msg-'+mode);
+      const show = (t, err)=>{ if(msg){ msg.textContent=t; msg.classList.add('show'); msg.style.background=err?'#fee2e2':'#d1fae5'; } };
+      try{
+        let csrf='';
+        try{
+          const c=await fetch('/api/csrf',{credentials:'same-origin'});
+          csrf=(await c.json()).csrfToken||'';
+        }catch(_){}
+        if(mode==='login'){
+          const inputs=form.querySelectorAll('input');
+          const email=inputs[0]?.value?.trim();
+          const password=inputs[1]?.value||'';
+          const res=await fetch('/api/auth/login',{
+            method:'POST', credentials:'same-origin',
+            headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},
+            body:JSON.stringify({email,password})
+          });
+          const data=await res.json().catch(()=>({}));
+          if(!res.ok) throw new Error(data.error||'Login fehlgeschlagen');
+          location.reload();
+          return false;
+        }
+        show('Bitte Seite vollständig neu laden (Strg+Shift+R), damit die Registrierung funktioniert.', true);
+      }catch(e){
+        show(e.message||'Fehler', true);
+      }
+      return false;
+    };
+  }
+})();
+</script>
 
 <script>
 function onPeriodChange(fromId, toId){

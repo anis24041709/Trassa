@@ -97,6 +97,7 @@ async function submitAuth(event, mode){
   return false;
 }
 window.submitAuth=submitAuth;
+window.trassaSubmitAuth=submitAuth;
 
 async function exitApp(){
   try{ await api('/auth/logout',{method:'POST'}); }catch{}
@@ -1154,3 +1155,7 @@ window.addEventListener('load', () => {
     setTimeout(syncPortalIdentity, 1800);
   });
 })();
+
+/* trassa-auth-bind */
+window.trassaSubmitAuth = submitAuth;
+window.submitAuth = submitAuth;
