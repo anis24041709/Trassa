@@ -1997,9 +1997,15 @@ body.app-mode .doc-row .d-meta{font-size:11px;color:#6b7280;font-family:var(--mo
           <div class="step-h" data-i18n="req_desc_h">Beschreibung / Besonderheiten</div>
           <div class="detail-note-box" id="req-detail-desc"></div>
         </div>
-        <div class="step-block">
-          <div class="step-h">Dokumente zur Anfrage</div>
-          <div id="req-detail-docs" class="doc-list" style="margin-bottom:10px;"></div>
+        <div class="step-block" id="req-docs-section">
+          <div class="step-h" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+            <span>Dokumente zur Anfrage</span>
+            <span style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button type="button" class="btn btn-ghost" id="req-docs-refresh-btn" onclick="refreshRequestDocuments();return false;" style="font-size:12px;padding:6px 10px;">Aktualisieren</button>
+              <button type="button" class="btn btn-primary" id="req-docs-upload-btn" onclick="document.getElementById('req-doc-file-input')?.click();return false;" style="font-size:12px;padding:6px 10px;display:none;">+ Hochladen</button>
+            </span>
+          </div>
+          <div id="req-detail-docs" class="doc-list" style="margin-bottom:10px;min-height:48px;border:1px solid var(--line,#e2e5ed);border-radius:8px;background:#fff;"></div>
           <div id="req-detail-docs-upload" style="display:none;">
             <div class="upload-box" id="req-doc-upload-box" role="button" tabindex="0" style="padding:16px;margin:0;"
               onclick="document.getElementById('req-doc-file-input').click()"
@@ -3501,7 +3507,7 @@ uploadBoxEl.addEventListener('drop', (e)=>{
 
 renderAll();
 </script>
-<script src="/api-adapter.js?v=417"></script>
+<script src="/api-adapter.js?v=418"></script>
 <script>
 (function(){
   // Adapter muss trassaSubmitAuth setzen

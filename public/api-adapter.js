@@ -266,13 +266,13 @@ function renderRealRequestDetail(r, docs){
       docsEl.innerHTML='<div class="no-results" style="padding:12px;">Keine Dokumente zu dieser Anfrage.<br><span style="font-size:12px;color:#6b7280">Laden Sie Dateien hier hoch oder unter Dokumente mit Anfrage-Verknüpfung.</span></div>';
       return;
     }
-    docsEl.innerHTML=list.map(d=>`<div class="doc-row">
+    docsEl.innerHTML=list.map(d=>`<div class="doc-row" style="cursor:pointer;" onclick="downloadDoc('${esc(d.id)}')" title="Zum Herunterladen klicken">
       <div class="d-ico">📎</div>
       <div class="d-main">
         <div class="d-name">${esc(d.original_name)}</div>
         <div class="d-meta">${Math.round((d.size_bytes||0)/1024)} KB · ${new Date(d.created_at).toLocaleDateString(lang==='de'?'de-DE':'en-GB')}</div>
       </div>
-      <button type="button" class="btn btn-ghost" onclick="downloadDoc('${esc(d.id)}')">Herunterladen</button>
+      <button type="button" class="btn btn-ghost" onclick="event.stopPropagation();downloadDoc('${esc(d.id)}')">Herunterladen</button>
     </div>`).join('');
   }
   let docList=Array.isArray(docs)&&docs.length ? docs : (window.__trassaCurrentRequestDocs||[]);
@@ -293,6 +293,9 @@ function renderRealRequestDetail(r, docs){
   myCompanyId=trassaUser?.company?.id;
   isOwner=r && (r.company_id===myCompanyId);
   if(uploadWrap) uploadWrap.style.display=isOwner?'block':'none';
+  const upBtn=document.getElementById('req-docs-upload-btn');
+  if(upBtn) upBtn.style.display=isOwner?'inline-flex':'none';
+
 
 }
 async function openRequestDetailById(requestId, fallback=null){
@@ -435,6 +438,34 @@ window.saveEditedRequest=saveEditedRequest;
 window.openRequestDetail=openRequestDetail;
 window.openDashboardRequestDetail=openDashboardRequestDetail;
 window.renderRealRequestDetail=renderRealRequestDetail;
+
+async function refreshRequestDocuments(){
+  const r=window.__trassaCurrentRequest;
+  if(!r || !r.id){
+    apiToast('Keine Anfrage geöffnet.');
+    return;
+  }
+  const docsEl=document.getElementById('req-detail-docs');
+  if(docsEl) docsEl.innerHTML='<div class="no-results" style="padding:12px;">Lade Dokumente …</div>';
+  try{
+    const out=await api('/requests/'+encodeURIComponent(r.id));
+    const list=out.documents||[];
+    window.__trassaCurrentRequestDocs=list;
+    if(out.request) window.__trassaCurrentRequest=out.request;
+    // reuse render
+    renderRealRequestDetail(window.__trassaCurrentRequest, list);
+    if(!list.length) apiToast('Keine verknüpften Dokumente. Bitte hier hochladen oder unter Dokumente verknüpfen.');
+    else apiToast(list.length+' Dokument(e) geladen.');
+  }catch(e){
+    try{
+      const all=await api('/documents?request_id='+encodeURIComponent(r.id));
+      window.__trassaCurrentRequestDocs=all.documents||[];
+      renderRealRequestDetail(r, all.documents||[]);
+    }catch(e2){apiToast(e.message||'Dokumente konnten nicht geladen werden.');}
+  }
+}
+window.refreshRequestDocuments=refreshRequestDocuments;
+
 
 function renderMarketplaceActions(r){
   if(!r || !trassaUser || r.company_id===trassaUser.company?.id || !['new','progress'].includes(r.status)) return;
