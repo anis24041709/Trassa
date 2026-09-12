@@ -1848,11 +1848,74 @@ body.app-mode .doc-row .d-meta{font-size:11px;color:#6b7280;font-family:var(--mo
   <div class="wrap foot-cta">
     <div class="eyebrow" style="justify-content:center;">TRASSA</div>
     <h2 data-i18n="foot_h2">Bereit für den ersten Sondertransport?</h2>
-    <p data-i18n="foot_p">Dies ist ein Konzeptentwurf. Als nächster Schritt können Anmeldung, Marktplatz-Logik und Backend aufgebaut werden.</p>
     <a class="btn btn-primary" href="#marktplatz" data-i18n="foot_cta">Zum Marktplatz</a>
-    <div class="fine" data-i18n="foot_fine">TRASSA — Marktplatz für Sondertransporte auf der Schiene · Konzept-Demo</div>
+    <div class="fine" style="margin-top:18px;" data-i18n="foot_fine">TRASSA — Marktplatz für Sondertransporte auf der Schiene</div>
+    <nav class="footer-legal" aria-label="Rechtliches" style="margin-top:16px;display:flex;flex-wrap:wrap;gap:8px 6px;justify-content:center;align-items:center;font-size:13px;font-weight:600;">
+      <a href="#impressum" data-i18n="foot_imprint" onclick="return showLegalSection('impressum')">Impressum</a>
+      <span aria-hidden="true" style="opacity:.45;">·</span>
+      <a href="#datenschutz" data-i18n="foot_privacy" onclick="return showLegalSection('datenschutz')">Datenschutz</a>
+      <span aria-hidden="true" style="opacity:.45;">·</span>
+      <a href="#nutzungsbedingungen" data-i18n="foot_terms" onclick="return showLegalSection('nutzungsbedingungen')">Nutzungsbedingungen</a>
+      <span aria-hidden="true" style="opacity:.45;">·</span>
+      <a href="#kontakt" data-i18n="foot_contact" onclick="return showLegalSection('kontakt')">Kontakt</a>
+    </nav>
   </div>
 </footer>
+
+<style>
+  .footer-legal a{color:inherit;text-decoration:none;padding:4px 6px;border-radius:6px;}
+  .footer-legal a:hover{color:#1a9b6c;text-decoration:underline;}
+  .legal-section{display:none;padding:48px 0 64px;background:#fff;border-top:1px solid #e4eee7;}
+  .legal-section h2{margin:0 0 14px;font-size:22px;color:#0f3d28;}
+  .legal-section p,.legal-section li{color:#4a6354;line-height:1.55;margin:0 0 12px;}
+  .legal-section ul{margin:0 0 14px;padding-left:18px;}
+</style>
+
+<section id="impressum" class="legal-section">
+  <div class="wrap" style="max-width:720px;">
+    <h2>Impressum</h2>
+    <p><strong>Angaben gemäß § 5 DDG</strong></p>
+    <p>TRASSA<br>Musterstraße 1<br>00000 Musterstadt<br>Deutschland</p>
+    <p>E-Mail: kontakt@trassa.example<br>Telefon: +49 (0) 000 000000</p>
+    <p><em>Platzhalter – bitte durch echte Unternehmensangaben ersetzen.</em></p>
+    <a class="btn btn-ghost" href="#" onclick="return hideLegalSections()">Zurück</a>
+  </div>
+</section>
+
+<section id="datenschutz" class="legal-section">
+  <div class="wrap" style="max-width:720px;">
+    <h2>Datenschutz</h2>
+    <p>Wir verarbeiten personenbezogene Daten (z. B. Name, E-Mail, Unternehmensdaten), soweit dies für Registrierung, Login und Betrieb des Marktplatzes erforderlich ist.</p>
+    <p>Rechtsgrundlagen sind insbesondere Art. 6 Abs. 1 lit. b und f DSGVO (Vertragserfüllung bzw. berechtigtes Interesse am sicheren Plattformbetrieb).</p>
+    <p>Weitere Details zu Speicherdauer, Empfängern und Betroffenenrechten (Auskunft, Löschung, Widerspruch) werden hier ergänzt.</p>
+    <p><em>Platzhalter – bitte durch eine vollständige Datenschutzerklärung ersetzen.</em></p>
+    <a class="btn btn-ghost" href="#" onclick="return hideLegalSections()">Zurück</a>
+  </div>
+</section>
+
+<section id="nutzungsbedingungen" class="legal-section">
+  <div class="wrap" style="max-width:720px;">
+    <h2>Nutzungsbedingungen</h2>
+    <p>Die Nutzung der TRASSA-Plattform setzt die Zustimmung zu diesen Nutzungsbedingungen voraus. TRASSA vermittelt Kontakte und Transaktionen zwischen Auftraggebern und Anbietern von Sondertransporten auf der Schiene.</p>
+    <p>Nutzer sind für die Richtigkeit ihrer Angaben, Angebote und Dokumente verantwortlich. Verträge über Transporte kommen zwischen den beteiligten Unternehmen zustande; TRASSA wird nicht Vertragspartner des Transports.</p>
+    <p>Mit der Registrierung bestätigen Sie, dass Sie berechtigt sind, für Ihr Unternehmen zu handeln, und die Plattform nur für geschäftliche Zwecke nutzen.</p>
+    <p><em>Platzhalter – rechtliche Finalisierung empfohlen.</em></p>
+    <a class="btn btn-ghost" href="#" onclick="return hideLegalSections()">Zurück</a>
+  </div>
+</section>
+
+<section id="kontakt" class="legal-section">
+  <div class="wrap" style="max-width:720px;">
+    <h2>Kontakt</h2>
+    <p>Fragen zur Plattform, zum Account oder zu technischen Problemen:</p>
+    <ul>
+      <li>E-Mail: <a href="mailto:kontakt@trassa.example">kontakt@trassa.example</a></li>
+      <li>Support-Zeiten: Mo–Fr, 09:00–17:00 Uhr</li>
+    </ul>
+    <p><em>Platzhalter – bitte durch echte Kontaktdaten ersetzen.</em></p>
+    <a class="btn btn-ghost" href="#" onclick="return hideLegalSections()">Zurück</a>
+  </div>
+</section>
 
 <div id="app-view">
   <aside class="app-sidebar">
@@ -2397,9 +2460,13 @@ const translations = {
     eyebrow_rating:"Bewertungssystem", rating_h2:"Vertrauen entsteht auf der Plattform",
     rating_p:"Nach jedem Auftrag bewerten sich Auftraggeber und Anbieter gegenseitig.",
     foot_h2:"Bereit für den ersten Sondertransport?",
-    foot_p:"Dies ist ein Konzeptentwurf. Als nächster Schritt können Anmeldung, Marktplatz-Logik und Backend aufgebaut werden.",
+    foot_p:"",
     foot_cta:"Zum Marktplatz",
-    foot_fine:"TRASSA — Marktplatz für Sondertransporte auf der Schiene · Konzept-Demo",
+    foot_fine:"TRASSA — Marktplatz für Sondertransporte auf der Schiene",
+    foot_imprint:"Impressum",
+    foot_privacy:"Datenschutz",
+    foot_terms:"Nutzungsbedingungen",
+    foot_contact:"Kontakt",
     groups:["Eisenbahnverkehrsunternehmen (EVU)","Wagenhalter","Kranunternehmen","Bauunternehmen","Infrastrukturunternehmen","Gleisbauunternehmen","Logistikunternehmen","Speditionen","Vermieter von Güterwagen","Werkstätten"],
     cases:[
       {q:"„Suche kurzfristig Transport von zwei Gleisbaggern von Köln nach Hannover zwischen 15.08. und 18.08.“", by:"EVU · Rheinbahn Cargo"},
@@ -2624,9 +2691,13 @@ const translations = {
     eyebrow_rating:"Rating system", rating_h2:"Trust builds on the platform",
     rating_p:"After every order, both sides rate each other.",
     foot_h2:"Ready for the first special transport?",
-    foot_p:"This is a concept draft. The next step would be building registration, marketplace logic and the backend.",
+    foot_p:"",
     foot_cta:"Go to marketplace",
-    foot_fine:"TRASSA — Marketplace for special rail transports · Concept demo",
+    foot_fine:"TRASSA — Marketplace for special rail transports",
+    foot_imprint:"Legal notice",
+    foot_privacy:"Privacy",
+    foot_terms:"Terms of use",
+    foot_contact:"Contact",
     groups:["Rail operators (EVU)","Wagon owners","Crane companies","Construction companies","Infrastructure companies","Track construction companies","Logistics companies","Freight forwarders","Freight wagon lessors","Workshops"],
     cases:[
       {q:"“Need short-notice transport of two rail-road excavators from Cologne to Hanover between 15–18 Aug.”", by:"Rail operator · Rheinbahn Cargo"},
@@ -3567,6 +3638,20 @@ function onPeriodChange(fromId, toId){
   }
 }
 window.onPeriodChange = onPeriodChange;
+function hideLegalSections(){
+  document.querySelectorAll('.legal-section').forEach(el=>{ el.style.display='none'; });
+  return false;
+}
+function showLegalSection(id){
+  hideLegalSections();
+  const s=document.getElementById(id);
+  if(!s) return false;
+  s.style.display='block';
+  s.scrollIntoView({behavior:'smooth',block:'start'});
+  return false;
+}
+window.showLegalSection=showLegalSection;
+window.hideLegalSections=hideLegalSections;
 </script>
 
 </body>
