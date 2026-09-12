@@ -1998,6 +1998,20 @@ body.app-mode .doc-row .d-meta{font-size:11px;color:#6b7280;font-family:var(--mo
           <div class="detail-note-box" id="req-detail-desc"></div>
         </div>
         <div class="step-block">
+          <div class="step-h">Dokumente zur Anfrage</div>
+          <div id="req-detail-docs" class="doc-list" style="margin-bottom:10px;"></div>
+          <div id="req-detail-docs-upload" style="display:none;">
+            <div class="upload-box" id="req-doc-upload-box" role="button" tabindex="0" style="padding:16px;margin:0;"
+              onclick="document.getElementById('req-doc-file-input').click()"
+              onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();document.getElementById('req-doc-file-input').click()}">
+              <div class="ico">📤</div>
+              <div class="txt">Dokument zu dieser Anfrage hochladen</div>
+              <div class="txt" style="font-size:12px;color:var(--text-faint);margin-top:4px;">PDF, Word, Excel, JPG, PNG · max. 25 MB</div>
+              <input id="req-doc-file-input" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.txt,application/pdf,image/jpeg,image/png" style="display:none" onchange="uploadDocumentForRequest(event)">
+            </div>
+          </div>
+        </div>
+        <div class="step-block">
           <div class="step3-actions" id="req-detail-actions"></div>
         </div>
       </div>

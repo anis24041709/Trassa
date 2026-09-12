@@ -146,8 +146,62 @@ function fmtDate(v){if(!v)return '';const d=v instanceof Date?v:new Date(v);if(N
 app.get('/api/dashboard',auth,async(req,res)=>{const [open,trans,offers,msg,reqs,act]=await Promise.all([pool.query("SELECT count(*)::int n FROM requests WHERE status IN ('new','progress') AND company_id<>$1",[req.user.companyId]),pool.query("SELECT count(*)::int n FROM transports t JOIN requests r ON r.id=t.request_id WHERE (r.company_id=$1 OR EXISTS(SELECT 1 FROM offers o WHERE o.id=t.offer_id AND o.provider_company_id=$1)) AND t.status NOT IN ('done','cancelled')",[req.user.companyId]),pool.query("SELECT count(*)::int n FROM offers o JOIN requests r ON r.id=o.request_id WHERE r.company_id=$1 AND o.status='pending'",[req.user.companyId]),pool.query("SELECT count(*)::int n FROM messages m JOIN conversation_members cm ON cm.conversation_id=m.conversation_id WHERE cm.company_id=$1 AND m.sender_user_id<>$2 AND m.read_at IS NULL",[req.user.companyId,req.user.sub]),pool.query("SELECT r.*,count(o.id)::int offers FROM requests r LEFT JOIN offers o ON o.request_id=r.id WHERE r.company_id=$1 GROUP BY r.id ORDER BY r.created_at DESC LIMIT 5",[req.user.companyId]),pool.query('SELECT icon,text,created_at FROM activity WHERE company_id=$1 ORDER BY created_at DESC LIMIT 10',[req.user.companyId])]);res.json({kpi:{open:open.rows[0].n,transports:trans.rows[0].n,offers:offers.rows[0].n,messages:msg.rows[0].n},requests:reqs.rows.map(requestDto),activity:act.rows});});
 
 app.get('/api/requests',auth,async(req,res)=>{const {mine,status,q,wagon_type,hazardous}=req.query;let sql='SELECT r.*,count(o.id)::int offers FROM requests r LEFT JOIN offers o ON o.request_id=r.id WHERE 1=1';const a=[];if(mine==='true'){a.push(req.user.companyId);sql+=` AND r.company_id=$${a.length}`;}else{a.push(req.user.companyId);sql+=` AND r.company_id<>$${a.length} AND r.status IN ('new','progress')`;}if(status){a.push(status);sql+=` AND r.status=$${a.length}`;}if(wagon_type){a.push(wagon_type);sql+=` AND r.wagon_type=$${a.length}`;}if(hazardous==='true'){sql+=' AND r.hazardous_goods=true';}if(hazardous==='false'){sql+=' AND r.hazardous_goods=false';}if(q){a.push(`%${String(q).slice(0,100)}%`);sql+=` AND (r.start_location ILIKE $${a.length} OR r.destination ILIKE $${a.length} OR r.title ILIKE $${a.length})`;}sql+=' GROUP BY r.id ORDER BY r.created_at DESC LIMIT 100';const out=await pool.query(sql,a);res.json({requests:out.rows.map(requestDto)});});
-app.get('/api/requests/:id',auth,async(req,res)=>{const q=await pool.query('SELECT r.*,count(o.id)::int offers FROM requests r LEFT JOIN offers o ON o.request_id=r.id WHERE r.id=$1 GROUP BY r.id',[req.params.id]);if(!q.rowCount)return res.status(404).json({error:'Anfrage nicht gefunden'});const r=q.rows[0];if(r.status==='draft'&&r.company_id!==req.user.companyId&&!req.userRow.is_admin)return res.status(403).json({error:'Nicht berechtigt'});res.json({request:requestDto(r)});});
+app.get('/api/requests/:id',auth,async(req,res)=>{const q=await pool.query('SELECT r.*,count(o.id)::int offers FROM requests r LEFT JOIN offers o ON o.request_id=r.id WHERE r.id=$1 GROUP BY r.id',[req.params.id]);if(!q.rowCount)return res.status(404).json({error:'Anfrage nicht gefunden'});const r=q.rows[0];if(r.status==='draft'&&r.company_id!==req.user.companyId&&!req.userRow.is_admin)return res.status(403).json({error:'Nicht berechtigt'});
+// Dokumente: Eigentümer sieht alle zur Anfrage; andere Beteiligte (Anbieter mit Angebot) ebenfalls
+let docs=[];
+const isOwner=r.company_id===req.user.companyId||req.userRow.is_admin;
+const offered=await pool.query('SELECT 1 FROM offers WHERE request_id=$1 AND provider_company_id=$2 LIMIT 1',[req.params.id,req.user.companyId]);
+if(isOwner||offered.rowCount){
+  const dq=await pool.query('SELECT id,original_name,mime_type,size_bytes,created_at,request_id,company_id FROM documents WHERE request_id=$1 ORDER BY created_at DESC',[req.params.id]);
+  docs=dq.rows;
+}
+res.json({request:requestDto(r),documents:docs});});
 app.post('/api/requests',auth,requireCsrf,async(req,res)=>{const p=requestSchema.safeParse(req.body);if(!p.success)return res.status(400).json({error:'Ungültige Anfrage'});const d=p.data;if(d.status==='new'&&(!d.start||!d.ziel||!d.titel))return res.status(400).json({error:'Start, Ziel und Titel sind erforderlich'});const q=await pool.query(`INSERT INTO requests(company_id,start_location,destination,from_date,to_date,weight_t,loading_gauge,wagon_type,hazardous_goods,title,description,status) VALUES($1,$2,$3,NULLIF($4,'')::date,NULLIF($5,'')::date,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,[req.user.companyId,d.start,d.ziel,d.von,d.bis,d.gewicht,d.lichtKey||null,d.wagenartKey||null,d.gefahrValue==='ja',d.titel,d.beschreibung,d.status]);await activity(req.user.companyId,'📋',`Anfrage #TR-${q.rows[0].public_id} wurde ${d.status==='draft'?'als Entwurf gespeichert':'veröffentlicht'}`);await audit(req,'request_created','request',q.rows[0].id);res.status(201).json({request:requestDto(q.rows[0])});});
+
+app.patch('/api/requests/:id',auth,requireCsrf,async(req,res)=>{
+  const existing=await pool.query('SELECT * FROM requests WHERE id=$1',[req.params.id]);
+  if(!existing.rowCount) return res.status(404).json({error:'Anfrage nicht gefunden'});
+  const r=existing.rows[0];
+  if(r.company_id!==req.user.companyId && !req.userRow.is_admin) return res.status(403).json({error:'Nicht berechtigt'});
+  if(['awarded','cancelled'].includes(r.status)) return res.status(400).json({error:'Diese Anfrage kann nicht mehr bearbeitet werden'});
+
+  // Stornierung
+  if(req.body && req.body.status==='cancelled'){
+    const client=await pool.connect();
+    try{
+      await client.query('BEGIN');
+      await client.query(`UPDATE requests SET status='cancelled',updated_at=now() WHERE id=$1`,[req.params.id]);
+      await client.query(`UPDATE offers SET status='declined',updated_at=now() WHERE request_id=$1 AND status='pending'`,[req.params.id]);
+      await client.query('COMMIT');
+    }catch(e){await client.query('ROLLBACK');throw e;}
+    finally{client.release();}
+    await activity(req.user.companyId,'✕',`Anfrage #TR-${r.public_id} wurde storniert`);
+    await audit(req,'request_cancelled','request',req.params.id);
+    const out=await pool.query('SELECT r.*,count(o.id)::int offers FROM requests r LEFT JOIN offers o ON o.request_id=r.id WHERE r.id=$1 GROUP BY r.id',[req.params.id]);
+    return res.json({request:requestDto(out.rows[0])});
+  }
+
+  // Felder aktualisieren (optional status draft/new)
+  const p=requestSchema.safeParse({...req.body, status: req.body.status||r.status});
+  if(!p.success) return res.status(400).json({error:'Ungültige Anfrage'});
+  const d=p.data;
+  let nextStatus=r.status;
+  if(d.status==='new'||d.status==='draft'){
+    if(!['draft','new','progress'].includes(r.status)) return res.status(400).json({error:'Statuswechsel nicht erlaubt'});
+    nextStatus=d.status;
+  }
+  if(nextStatus==='new'&&(!d.start||!d.ziel||!d.titel)) return res.status(400).json({error:'Start, Ziel und Titel sind erforderlich'});
+
+  const q=await pool.query(
+    `UPDATE requests SET start_location=$1,destination=$2,from_date=NULLIF($3,'')::date,to_date=NULLIF($4,'')::date,weight_t=$5,loading_gauge=$6,wagon_type=$7,hazardous_goods=$8,title=$9,description=$10,status=$11,updated_at=now() WHERE id=$12 RETURNING *`,
+    [d.start,d.ziel,d.von||'',d.bis||'',d.gewicht??null,d.lichtKey||null,d.wagenartKey||null,d.gefahrValue==='ja',d.titel,d.beschreibung||null,nextStatus,req.params.id]
+  );
+  await activity(req.user.companyId,'✎',`Anfrage #TR-${q.rows[0].public_id} wurde aktualisiert`);
+  await audit(req,'request_updated','request',req.params.id);
+  const offers=await pool.query('SELECT count(*)::int c FROM offers WHERE request_id=$1',[req.params.id]);
+  const dto=requestDto(q.rows[0]); dto.offers=offers.rows[0].c;
+  res.json({request:dto});
+});
 
 app.post('/api/requests/:id/offers',auth,requireCsrf,async(req,res)=>{const p=offerSchema.safeParse(req.body);if(!p.success)return res.status(400).json({error:'Ungültiges Angebot'});const r=await pool.query('SELECT * FROM requests WHERE id=$1',[req.params.id]);if(!r.rowCount)return res.status(404).json({error:'Anfrage nicht gefunden'});if(r.rows[0].company_id===req.user.companyId)return res.status(400).json({error:'Sie können auf die eigene Anfrage kein Angebot abgeben'});if(!['new','progress'].includes(r.rows[0].status))return res.status(400).json({error:'Anfrage ist nicht offen'});try{const q=await pool.query(`INSERT INTO offers(request_id,provider_company_id,price_cents,valid_until,contact_name,note) VALUES($1,$2,$3,NULLIF($4,'')::date,$5,$6) RETURNING *`,[req.params.id,req.user.companyId,p.data.price_cents,p.data.valid_until,p.data.contact_name,p.data.note]);await activity(r.rows[0].company_id,'💼',`Neues Angebot für #TR-${r.rows[0].public_id}`);await audit(req,'offer_created','offer',q.rows[0].id);res.status(201).json({offer:q.rows[0]});}catch(e){if(e.code==='23505')return res.status(409).json({error:'Ihr Unternehmen hat bereits ein Angebot abgegeben'});throw e;}});
 app.get('/api/offers',auth,async(req,res)=>{const q=await pool.query(`SELECT o.*,r.public_id,r.company_id request_company,r.start_location,r.destination,r.from_date,r.to_date,provider.name provider_name,customer.name customer_name FROM offers o JOIN requests r ON r.id=o.request_id JOIN companies provider ON provider.id=o.provider_company_id JOIN companies customer ON customer.id=r.company_id WHERE r.company_id=$1 OR o.provider_company_id=$1 ORDER BY o.created_at DESC`,[req.user.companyId]);res.json({offers:q.rows.map(o=>({...o,id:o.id,request_id:o.request_id,provider_company_id:o.provider_company_id,price_cents:o.price_cents,route:`${o.start_location} → ${o.destination}`,direction:o.request_company===req.user.companyId?'incoming':'outgoing',partner:o.request_company===req.user.companyId?o.provider_name:o.customer_name,price:(o.price_cents/100).toLocaleString('de-DE',{style:'currency',currency:'EUR'}),date:o.created_at,validUntil:o.valid_until,note:o.note,status:o.status,contact:o.contact_name,request_company:o.request_company}))});});
@@ -167,8 +221,8 @@ app.post('/api/conversations/:id/messages',auth,requireCsrf,async(req,res)=>{con
 
 const storage=multer.diskStorage({destination:(_,__,cb)=>cb(null,uploadDir),filename:(_,file,cb)=>cb(null,`${crypto.randomUUID()}${path.extname(file.originalname).toLowerCase()}`)});
 const upload=multer({storage,limits:{fileSize:MAX_UPLOAD_MB*1024*1024},fileFilter:(_,file,cb)=>{const allowed=['application/pdf','image/jpeg','image/png','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/msword','application/vnd.ms-excel','text/plain'];cb(null,allowed.includes(file.mimetype));}});
-app.get('/api/documents',auth,async(req,res)=>{const q=await pool.query('SELECT id,original_name,mime_type,size_bytes,sha256,created_at,request_id FROM documents WHERE company_id=$1 ORDER BY created_at DESC',[req.user.companyId]);res.json({documents:q.rows});});
-app.post('/api/documents',auth,requireCsrf,upload.single('file'),async(req,res)=>{if(!req.file)return res.status(400).json({error:'Datei fehlt oder Dateityp nicht erlaubt'});const hash=crypto.createHash('sha256').update(fs.readFileSync(req.file.path)).digest('hex');try{const q=await pool.query('INSERT INTO documents(company_id,request_id,original_name,stored_name,mime_type,size_bytes,sha256) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,original_name,mime_type,size_bytes,created_at,request_id',[req.user.companyId,req.body.request_id||null,req.file.originalname,req.file.filename,req.file.mimetype,req.file.size,hash]);await audit(req,'document_uploaded','document',q.rows[0].id);res.status(201).json({document:q.rows[0]});}catch(e){fs.rmSync(req.file.path,{force:true});throw e;}});
+app.get('/api/documents',auth,async(req,res)=>{const a=[req.user.companyId];let sql='SELECT id,original_name,mime_type,size_bytes,sha256,created_at,request_id FROM documents WHERE company_id=$1';if(req.query.request_id){a.push(req.query.request_id);sql+=' AND request_id=$'+a.length;}sql+=' ORDER BY created_at DESC';const q=await pool.query(sql,a);res.json({documents:q.rows});});
+app.post('/api/documents',auth,requireCsrf,upload.single('file'),async(req,res)=>{if(!req.file)return res.status(400).json({error:'Datei fehlt oder Dateityp nicht erlaubt'});let requestId=req.body.request_id||null;if(requestId){const rq=await pool.query('SELECT id,company_id FROM requests WHERE id=$1',[requestId]);if(!rq.rowCount)return res.status(400).json({error:'Anfrage nicht gefunden'});if(rq.rows[0].company_id!==req.user.companyId&&!req.userRow.is_admin)return res.status(403).json({error:'Dokumente können nur vom Anfrage-Eigentümer verknüpft werden'});}const hash=crypto.createHash('sha256').update(fs.readFileSync(req.file.path)).digest('hex');try{const q=await pool.query('INSERT INTO documents(company_id,request_id,original_name,stored_name,mime_type,size_bytes,sha256) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,original_name,mime_type,size_bytes,created_at,request_id',[req.user.companyId,requestId,req.file.originalname,req.file.filename,req.file.mimetype,req.file.size,hash]);await audit(req,'document_uploaded','document',q.rows[0].id);res.status(201).json({document:q.rows[0]});}catch(e){fs.rmSync(req.file.path,{force:true});throw e;}});
 app.get('/api/documents/:id/download',auth,async(req,res)=>{const q=await pool.query('SELECT * FROM documents WHERE id=$1 AND company_id=$2',[req.params.id,req.user.companyId]);if(!q.rowCount)return res.status(404).end();const f=path.resolve(uploadDir,path.basename(String(q.rows[0].stored_name||'')));if(!f.startsWith(path.resolve(uploadDir)+path.sep)&&f!==path.resolve(uploadDir))return res.status(404).end();if(!fs.existsSync(f))return res.status(404).end();res.download(f,q.rows[0].original_name);});
 
 app.get('/api/billing',auth,async(req,res)=>{const q=await pool.query('SELECT * FROM invoices WHERE company_id=$1 ORDER BY invoice_date DESC',[req.user.companyId]);const total=q.rows.reduce((s,x)=>s+x.amount_cents,0);res.json({stats:{total:(total/100).toFixed(2),open:q.rows.filter(x=>x.status==='open').length,paid:q.rows.filter(x=>x.status==='paid').length},invoices:q.rows});});

@@ -1,3 +1,4 @@
+const statusClass={draft:'grey',new:'amber',progress:'amber',awarded:'green',cancelled:'red',pending:'amber',accepted:'green',declined:'red',withdrawn:'grey',planned:'amber',underway:'amber',done:'green'};
 /* TRASSA production client adapter: replaces demo/local state with the REST API. */
 const TRASSA_API = '/api';
 let trassaUser = null;
@@ -194,10 +195,17 @@ function requestDisplayValue(value){
   return t[value] || value;
 }
 function requestStatusLabel(status){
+  const map=lang==='de'?{
+    draft:'Entwurf',new:'Offen',progress:'In Bearbeitung',awarded:'Vergeben',cancelled:'Storniert',
+    pending:'Offen',accepted:'Angenommen',declined:'Abgelehnt',withdrawn:'Zurückgezogen'
+  }:{
+    draft:'Draft',new:'Open',progress:'In progress',awarded:'Awarded',cancelled:'Cancelled',
+    pending:'Pending',accepted:'Accepted',declined:'Declined',withdrawn:'Withdrawn'
+  };
   const t=translations[lang] || {};
-  return t['status_'+status] || status || '—';
+  return t['status_'+status] || map[status] || status || '—';
 }
-function renderRealRequestDetail(r){
+function renderRealRequestDetail(r, docs){
   if(!r) return;
   const locale=lang==='de'?'de-DE':'en-GB';
   const labels=lang==='de'
@@ -224,9 +232,44 @@ function renderRealRequestDetail(r){
     [labels.status,requestStatusLabel(r.status)]
   ].map(([k,v])=>`<div class="detail-item"><span class="k">${esc(k)}</span><div class="v">${esc(v)}</div></div>`).join('');
   document.getElementById('req-detail-desc').textContent=r.description || '—';
-  document.getElementById('req-detail-actions').innerHTML=offers>0
-    ? `<button type="button" class="btn btn-primary" onclick="switchAppPanel('angebote')">${esc(labels.showOffers)} (${offers})</button>`
-    : `<span class="status-badge ${statusClass[r.status]||'grey'}">${esc(requestStatusLabel(r.status))}</span>`;
+  const myCompanyId=trassaUser?.company?.id;
+  const isOwner=r.company_id===myCompanyId;
+  const canEdit=isOwner && ['draft','new','progress'].includes(r.status);
+  const parts=[];
+  if(offers>0){
+    parts.push(`<button type="button" class="btn btn-primary" onclick="switchAppPanel('angebote')">${esc(labels.showOffers)} (${offers})</button>`);
+  } else {
+    parts.push(`<span class="status-badge ${statusClass[r.status]||'grey'}">${esc(requestStatusLabel(r.status))}</span>`);
+  }
+  if(canEdit){
+    parts.push(`<button type="button" class="btn btn-ghost" onclick="startEditRequest('${esc(r.id)}')">Bearbeiten</button>`);
+    parts.push(`<button type="button" class="btn btn-ghost" style="color:#dc2626;border-color:#fca5a5;" onclick="cancelRequest('${esc(r.id)}')">Stornieren</button>`);
+  }
+  document.getElementById('req-detail-actions').innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">${parts.join('')}</div>`;
+
+  // Dokumente anzeigen
+  const docsEl=document.getElementById('req-detail-docs');
+  const uploadWrap=document.getElementById('req-detail-docs-upload');
+  const docList=Array.isArray(docs)?docs:(window.__trassaCurrentRequestDocs||[]);
+  if(docsEl){
+    if(!docList.length){
+      docsEl.innerHTML='<div class="no-results" style="padding:12px;">Keine Dokumente zu dieser Anfrage.</div>';
+    }else{
+      docsEl.innerHTML=docList.map(d=>`<div class="doc-row">
+        <div class="d-ico">📎</div>
+        <div class="d-main">
+          <div class="d-name">${esc(d.original_name)}</div>
+          <div class="d-meta">${Math.round((d.size_bytes||0)/1024)} KB · ${new Date(d.created_at).toLocaleDateString(lang==='de'?'de-DE':'en-GB')}</div>
+        </div>
+        <button type="button" class="btn btn-ghost" onclick="downloadDoc('${esc(d.id)}')">Herunterladen</button>
+      </div>`).join('');
+    }
+  }
+  // Upload nur für Eigentümer der Anfrage
+  myCompanyId=trassaUser?.company?.id;
+  isOwner=r && (r.company_id===myCompanyId);
+  if(uploadWrap) uploadWrap.style.display=isOwner?'block':'none';
+
 }
 async function openRequestDetailById(requestId, fallback=null){
   if(!requestId) return;
@@ -235,13 +278,15 @@ async function openRequestDetailById(requestId, fallback=null){
     const r=out.request || fallback;
     if(!r) return;
     window.__trassaCurrentRequest=r;
+    window.__trassaCurrentRequestDocs=out.documents||[];
     await switchAppPanel('anfrage-detail');
-    renderRealRequestDetail(r);
+    renderRealRequestDetail(r, out.documents||[]);
   }catch(e){
     if(fallback){
       window.__trassaCurrentRequest=fallback;
+      window.__trassaCurrentRequestDocs=[];
       await switchAppPanel('anfrage-detail');
-      renderRealRequestDetail(fallback);
+      renderRealRequestDetail(fallback, []);
     }
     apiToast(e.message);
   }
@@ -255,6 +300,114 @@ async function openRequestDetail(index){
 async function openDashboardRequestDetail(requestId){
   await openRequestDetailById(requestId, null);
 }
+
+async function cancelRequest(requestId){
+  if(!requestId) return;
+  if(!confirm(lang==='de'?'Anfrage wirklich stornieren? Offene Angebote werden abgelehnt.':'Really cancel this request? Pending offers will be declined.')) return;
+  try{
+    await api('/requests/'+encodeURIComponent(requestId),{method:'PATCH',body:JSON.stringify({status:'cancelled'})});
+    apiToast(lang==='de'?'Anfrage storniert.':'Request cancelled.');
+    await openRequestDetailById(requestId);
+    if(typeof renderMyRequests==='function') await renderMyRequests();
+    if(typeof trassaLoadDashboard==='function') await trassaLoadDashboard();
+  }catch(e){apiToast(e.message)}
+}
+window.cancelRequest=cancelRequest;
+
+async function startEditRequest(requestId){
+  try{
+    const out=await api('/requests/'+encodeURIComponent(requestId));
+    const r=out.request;
+    if(!r) return;
+    if(!['draft','new','progress'].includes(r.status)){
+      apiToast(lang==='de'?'Diese Anfrage kann nicht bearbeitet werden.':'This request cannot be edited.');
+      return;
+    }
+    window.__trassaEditingRequestId=r.id;
+    // Formular befüllen
+    const set=(id,val)=>{const el=document.getElementById(id); if(el) el.value=val??'';};
+    set('nr-start', r.start_location||'');
+    set('nr-ziel', r.destination||'');
+    set('nr-von', (r.from_date||'').toString().slice(0,10));
+    set('nr-bis', (r.to_date||'').toString().slice(0,10));
+    set('nr-gewicht', r.weight_t!=null?r.weight_t:'');
+    set('nr-titel', r.title||'');
+    set('nr-beschreibung', r.description||'');
+    // Selects: best effort by value/text
+    const setSelect=(id, value, attrMatch)=>{
+      const el=document.getElementById(id);
+      if(!el||value==null) return;
+      const opts=[...el.options];
+      let found=opts.find(o=>o.value===value || o.getAttribute('data-i18n')===value || o.text===value);
+      if(!found && attrMatch) found=opts.find(o=>o.getAttribute('data-i18n')===attrMatch);
+      if(found) el.value=found.value;
+    };
+    setSelect('nr-licht', r.loading_gauge);
+    setSelect('nr-wagenart', r.wagon_type);
+    setSelect('nr-gefahr', r.hazardous_goods?'ja':'nein');
+    await switchAppPanel('neue-anfrage');
+    // Titel anpassen
+    const h1=document.querySelector('#panel-neue-anfrage .panel-title-row h1');
+    const p=document.querySelector('#panel-neue-anfrage .panel-title-row p');
+    if(h1) h1.textContent=lang==='de'?'Anfrage bearbeiten':'Edit request';
+    if(p) p.textContent=lang==='de'?`#TR-${r.public_id}`:'';
+    // Buttons: Publish becomes Speichern
+    const publishBtn=document.querySelector('#panel-neue-anfrage a.btn-primary');
+    if(publishBtn){
+      publishBtn.textContent=lang==='de'?'Änderungen speichern':'Save changes';
+      publishBtn.setAttribute('onclick','saveEditedRequest();return false;');
+    }
+    const draftBtn=document.querySelector('#panel-neue-anfrage a.btn-ghost');
+    if(draftBtn && r.status==='draft'){
+      draftBtn.style.display='';
+      draftBtn.textContent=lang==='de'?'Als Entwurf speichern':'Save as draft';
+      draftBtn.setAttribute('onclick','saveEditedRequest(true);return false;');
+    } else if(draftBtn){
+      draftBtn.style.display='none';
+    }
+  }catch(e){apiToast(e.message)}
+}
+window.startEditRequest=startEditRequest;
+
+async function saveEditedRequest(asDraft=false){
+  const id=window.__trassaEditingRequestId;
+  if(!id){
+    // Fallback: neue Anfrage
+    return asDraft?saveDraftRequest():publishNewRequest();
+  }
+  if(typeof collectNewRequestData!=='function'){apiToast('Formular nicht verfügbar.');return;}
+  const data=collectNewRequestData();
+  if(!asDraft && (!data.start||!data.ziel||!data.titel)){
+    apiToast(lang==='de'?'Bitte Pflichtfelder ausfüllen.':'Please fill required fields.');
+    return;
+  }
+  try{
+    const body={...data, status: asDraft?'draft':'new'};
+    // progress behalten wenn schon progress und nicht draft
+    const cur=window.__trassaCurrentRequest;
+    if(cur && cur.id===id && cur.status==='progress' && !asDraft) body.status='progress';
+    await api('/requests/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify(body)});
+    apiToast(lang==='de'?'Anfrage gespeichert.':'Request saved.');
+    window.__trassaEditingRequestId=null;
+    // Form-Titel zurücksetzen
+    const h1=document.querySelector('#panel-neue-anfrage .panel-title-row h1');
+    if(h1) h1.textContent=lang==='de'?'Neue Anfrage erstellen':'Create new request';
+    const publishBtn=document.querySelector('#panel-neue-anfrage a.btn-primary');
+    if(publishBtn){
+      publishBtn.setAttribute('onclick','publishNewRequest();return false;');
+      publishBtn.textContent=lang==='de'?'Anfrage veröffentlichen':'Publish request';
+    }
+    const draftBtn=document.querySelector('#panel-neue-anfrage a.btn-ghost');
+    if(draftBtn){
+      draftBtn.style.display='';
+      draftBtn.setAttribute('onclick','saveDraftRequest();return false;');
+    }
+    await openRequestDetailById(id);
+    if(typeof renderMyRequests==='function') await renderMyRequests();
+  }catch(e){apiToast(e.message)}
+}
+window.saveEditedRequest=saveEditedRequest;
+
 window.openRequestDetail=openRequestDetail;
 window.openDashboardRequestDetail=openDashboardRequestDetail;
 window.renderRealRequestDetail=renderRealRequestDetail;
@@ -761,8 +914,9 @@ async function renderDocuments(){
       <div class="d-ico">📎</div>
       <div class="d-main">
         <div class="d-name">${esc(d.original_name)}</div>
-        <div class="d-meta">${Math.round((d.size_bytes||0)/1024)} KB · ${new Date(d.created_at).toLocaleDateString(lang==='de'?'de-DE':'en-GB')}</div>
+        <div class="d-meta">${Math.round((d.size_bytes||0)/1024)} KB · ${new Date(d.created_at).toLocaleDateString(lang==='de'?'de-DE':'en-GB')}${d.request_id?` · Anfrage ${esc(String(d.request_id).slice(0,8))}…`:''}</div>
       </div>
+      ${d.request_id?`<button type="button" class="btn btn-ghost" onclick="openRequestDetailById('${esc(d.request_id)}')">Zur Anfrage</button>`:''}
       <button type="button" class="btn btn-ghost" onclick="downloadDoc('${esc(d.id)}')">Herunterladen</button>
     </div>`).join('')||'<div class="no-results">Keine Dokumente vorhanden.</div>';
     bindDocUploadDrop();
@@ -802,6 +956,38 @@ async function uploadDocument(event){
   }catch(e){apiToast(e.message||'Upload fehlgeschlagen');input.value='';}
 }
 window.uploadDocument=uploadDocument;
+
+async function uploadDocumentForRequest(event){
+  const input=event?.target || document.getElementById('req-doc-file-input');
+  const file=input?.files?.[0];
+  const requestId=window.__trassaCurrentRequest?.id;
+  if(!file) return;
+  if(!requestId){apiToast('Keine Anfrage ausgewählt.');return;}
+  if(file.size > 25*1024*1024){apiToast('Datei ist größer als 25 MB.');input.value='';return;}
+  try{
+    if(!trassaCsrf){
+      const c=await fetch(TRASSA_API+'/csrf',{credentials:'same-origin'});
+      trassaCsrf=(await c.json()).csrfToken;
+    }
+    const fd=new FormData();
+    fd.append('file', file);
+    fd.append('request_id', requestId);
+    const res=await fetch(TRASSA_API+'/documents',{
+      method:'POST',
+      credentials:'same-origin',
+      headers:{'X-CSRF-Token':trassaCsrf||''},
+      body:fd
+    });
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error||'Upload fehlgeschlagen');
+    apiToast('Dokument zur Anfrage hochgeladen.');
+    input.value='';
+    await openRequestDetailById(requestId);
+  }catch(e){apiToast(e.message||'Upload fehlgeschlagen');input.value='';}
+}
+window.uploadDocumentForRequest=uploadDocumentForRequest;
+
+
 
 function bindDocUploadDrop(){
   const box=document.getElementById('doc-upload-box');
