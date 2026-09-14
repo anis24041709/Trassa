@@ -41,6 +41,8 @@ app.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 500, standardHeaders: true,
 
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: true, legacyHeaders: false });
 const passwordLimiter = rateLimit({ windowMs: 60 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false });
+const uploadLimiter = rateLimit({ windowMs: 60 * 60 * 1000, limit: 30, standardHeaders: true, legacyHeaders: false });
+const messageLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 120, standardHeaders: true, legacyHeaders: false });
 const csrfCookie = 'trassa_csrf';
 const sessionCookie = 'trassa_session';
 const token = () => crypto.randomBytes(32).toString('hex');
@@ -261,13 +263,33 @@ app.patch('/api/transports/:id',auth,verified,requireCsrf,async(req,res)=>{
 app.get('/api/conversations',auth,async(req,res)=>{const q=await pool.query(`SELECT c.id,c.request_id,coalesce(max(m.created_at),c.created_at) last_at,coalesce((SELECT body FROM messages m2 WHERE m2.conversation_id=c.id ORDER BY created_at DESC LIMIT 1),'') last,(SELECT count(*) FROM messages mu WHERE mu.conversation_id=c.id AND mu.sender_user_id<>$1 AND mu.read_at IS NULL)::int unread,string_agg(DISTINCT cp.name, ', ') names FROM conversations c JOIN conversation_members cm ON cm.conversation_id=c.id JOIN companies cp ON cp.id=cm.company_id LEFT JOIN messages m ON m.conversation_id=c.id WHERE cm.company_id=$2 GROUP BY c.id ORDER BY last_at DESC`,[req.user.sub,req.user.companyId]);res.json({conversations:q.rows});});
 app.post('/api/conversations',auth,verified,requireCsrf,async(req,res)=>{const p=z.object({request_id:z.string().uuid(),company_id:z.string().uuid().optional()}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Ungültige Gesprächsdaten'});const r=await pool.query('SELECT company_id,status FROM requests WHERE id=$1',[p.data.request_id]);if(!r.rowCount)return res.status(404).json({error:'Anfrage nicht gefunden'});const ownerCompanyId=r.rows[0].company_id;let partnerCompanyId=null;if(ownerCompanyId===req.user.companyId){partnerCompanyId=p.data.company_id||null;if(!partnerCompanyId||partnerCompanyId===req.user.companyId)return res.status(400).json({error:'Ungültiger Gesprächspartner'});const offered=await pool.query('SELECT 1 FROM offers WHERE request_id=$1 AND provider_company_id=$2 LIMIT 1',[p.data.request_id,partnerCompanyId]);if(!offered.rowCount)return res.status(403).json({error:'Gespräche sind nur mit Anbietern möglich, die ein Angebot abgegeben haben'});}else{if(r.rows[0].status==='draft')return res.status(403).json({error:'Nicht berechtigt'});if(p.data.company_id&&p.data.company_id!==ownerCompanyId)return res.status(403).json({error:'Gesprächspartner muss der Auftraggeber sein'});partnerCompanyId=ownerCompanyId;}const client=await pool.connect();try{await client.query('BEGIN');let c=await client.query('SELECT c.id FROM conversations c JOIN conversation_members a ON a.conversation_id=c.id AND a.company_id=$1 JOIN conversation_members b ON b.conversation_id=c.id AND b.company_id=$2 WHERE c.request_id=$3 LIMIT 1',[req.user.companyId,partnerCompanyId,p.data.request_id]);if(!c.rowCount){c=await client.query('INSERT INTO conversations(request_id) VALUES($1) RETURNING id',[p.data.request_id]);await client.query('INSERT INTO conversation_members(conversation_id,company_id) VALUES($1,$2),($1,$3)',[c.rows[0].id,req.user.companyId,partnerCompanyId]);}await client.query('COMMIT');res.status(201).json({conversation:{id:c.rows[0].id}});}catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}});
 app.get('/api/conversations/:id/messages',auth,async(req,res)=>{const member=await pool.query('SELECT 1 FROM conversation_members WHERE conversation_id=$1 AND company_id=$2',[req.params.id,req.user.companyId]);if(!member.rowCount)return res.status(403).json({error:'Nicht berechtigt'});await pool.query('UPDATE messages SET read_at=now() WHERE conversation_id=$1 AND sender_user_id<>$2 AND read_at IS NULL',[req.params.id,req.user.sub]);const q=await pool.query('SELECT m.id,m.body,m.created_at,m.sender_user_id FROM messages m WHERE m.conversation_id=$1 ORDER BY created_at',[req.params.id]);res.json({messages:q.rows});});
-app.post('/api/conversations/:id/messages',auth,verified,requireCsrf,async(req,res)=>{const p=messageSchema.safeParse(req.body);if(!p.success)return res.status(400).json({error:'Nachricht fehlt'});const member=await pool.query('SELECT 1 FROM conversation_members WHERE conversation_id=$1 AND company_id=$2',[req.params.id,req.user.companyId]);if(!member.rowCount)return res.status(403).json({error:'Nicht berechtigt'});const q=await pool.query('INSERT INTO messages(conversation_id,sender_user_id,body) VALUES($1,$2,$3) RETURNING *',[req.params.id,req.user.sub,p.data.body]);res.status(201).json({message:q.rows[0]});});
+app.post('/api/conversations/:id/messages',messageLimiter,auth,verified,requireCsrf,async(req,res)=>{const p=messageSchema.safeParse(req.body);if(!p.success)return res.status(400).json({error:'Nachricht fehlt'});const member=await pool.query('SELECT 1 FROM conversation_members WHERE conversation_id=$1 AND company_id=$2',[req.params.id,req.user.companyId]);if(!member.rowCount)return res.status(403).json({error:'Nicht berechtigt'});const q=await pool.query('INSERT INTO messages(conversation_id,sender_user_id,body) VALUES($1,$2,$3) RETURNING *',[req.params.id,req.user.sub,p.data.body]);res.status(201).json({message:q.rows[0]});});
 
 const storage=multer.diskStorage({destination:(_,__,cb)=>cb(null,uploadDir),filename:(_,file,cb)=>cb(null,`${crypto.randomUUID()}${path.extname(file.originalname).toLowerCase()}`)});
-const upload=multer({storage,limits:{fileSize:MAX_UPLOAD_MB*1024*1024},fileFilter:(_,file,cb)=>{const allowed=['application/pdf','image/jpeg','image/png','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/msword','application/vnd.ms-excel','text/plain'];cb(null,allowed.includes(file.mimetype));}});
+const allowedUploadTypes=new Set(['application/pdf','image/jpeg','image/png','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/msword','application/vnd.ms-excel','text/plain']);
+const upload=multer({storage,limits:{fileSize:MAX_UPLOAD_MB*1024*1024,files:1,fields:5},fileFilter:(_,file,cb)=>cb(null,allowedUploadTypes.has(file.mimetype))});
+function safeOriginalName(value){
+  const clean=path.basename(String(value||'document')).replace(/[\u0000-\u001f\u007f]/g,'').trim();
+  return (clean||'document').slice(0,200);
+}
+function uploadSignatureMatches(filePath,mimeType){
+  const fd=fs.openSync(filePath,'r');
+  try{
+    const head=Buffer.alloc(16);const count=fs.readSync(fd,head,0,head.length,0);const b=head.subarray(0,count);
+    if(mimeType==='application/pdf')return b.subarray(0,5).toString()==='%PDF-';
+    if(mimeType==='image/png')return b.length>=8&&b.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
+    if(mimeType==='image/jpeg')return b.length>=3&&b[0]===0xff&&b[1]===0xd8&&b[2]===0xff;
+    if(mimeType.includes('openxmlformats'))return b.length>=4&&b[0]===0x50&&b[1]===0x4b&&[0x03,0x05,0x07].includes(b[2])&&[0x04,0x06,0x08].includes(b[3]);
+    if(mimeType==='application/msword'||mimeType==='application/vnd.ms-excel')return b.length>=8&&b.subarray(0,8).equals(Buffer.from([0xd0,0xcf,0x11,0xe0,0xa1,0xb1,0x1a,0xe1]));
+    if(mimeType==='text/plain')return !b.includes(0);
+    return false;
+  }finally{fs.closeSync(fd);}
+}
 app.get('/api/documents',auth,async(req,res)=>{const a=[req.user.companyId];let sql='SELECT id,original_name,mime_type,size_bytes,sha256,created_at,request_id FROM documents WHERE company_id=$1';if(req.query.request_id){a.push(req.query.request_id);sql+=' AND request_id=$'+a.length;}sql+=' ORDER BY created_at DESC';const q=await pool.query(sql,a);res.json({documents:q.rows});});
-app.post('/api/documents',auth,verified,requireCsrf,upload.single('file'),async(req,res)=>{
+app.post('/api/documents',uploadLimiter,auth,verified,requireCsrf,upload.single('file'),async(req,res)=>{
   if(!req.file)return res.status(400).json({error:'Datei fehlt oder Dateityp nicht erlaubt'});
+  if(!uploadSignatureMatches(req.file.path,req.file.mimetype)){fs.rmSync(req.file.path,{force:true});return res.status(400).json({error:'Dateiinhalt stimmt nicht mit dem angegebenen Dateityp überein'});}
+  req.file.originalname=safeOriginalName(req.file.originalname);
   let requestId=req.body.request_id||null;
   if(requestId){
     const rq=await pool.query('SELECT id,company_id FROM requests WHERE id=$1',[requestId]);
