@@ -71,6 +71,8 @@ async function auth(req, res, next) {
     if (!q.rowCount || !q.rows[0].is_active) return res.status(401).json({ error: 'Benutzerkonto nicht verfügbar' });
     if (Number(req.user.sv || 0) !== Number(q.rows[0].session_version || 0)) return res.status(401).json({ error: 'Sitzung wurde widerrufen' });
     req.userRow = q.rows[0];
+    req.user.companyId = q.rows[0].company_id;
+    req.user.admin = !!q.rows[0].is_admin;
     next();
   } catch { return res.status(401).json({ error: 'Sitzung ungültig oder abgelaufen' }); }
 }
@@ -288,7 +290,15 @@ app.get('/api/documents/:id/download',auth,async(req,res)=>{
 
 app.get('/api/billing',auth,async(req,res)=>{const q=await pool.query('SELECT * FROM invoices WHERE company_id=$1 ORDER BY invoice_date DESC',[req.user.companyId]);const total=q.rows.reduce((s,x)=>s+x.amount_cents,0);res.json({stats:{total:(total/100).toFixed(2),open:q.rows.filter(x=>x.status==='open').length,paid:q.rows.filter(x=>x.status==='paid').length},invoices:q.rows});});
 app.get('/api/settings',auth,async(req,res)=>{const q=await pool.query('SELECT id,name,role,email,contact_name,phone,vat_id,address_line,postal_code,city,country,notification_offers,notification_messages,is_verified FROM companies WHERE id=$1',[req.user.companyId]);res.json({company:q.rows[0]});});
-app.patch('/api/settings',auth,requireCsrf,async(req,res)=>{const p=settingsSchema.safeParse(req.body);if(!p.success)return res.status(400).json({error:'Ungültige Einstellungen'});const d=p.data;const client=await pool.connect();try{await client.query('BEGIN');await client.query('UPDATE companies SET name=$1,contact_name=$2,phone=$3,email=lower($4),vat_id=$5,address_line=$6,postal_code=$7,city=$8,country=$9,notification_offers=$10,notification_messages=$11,updated_at=now() WHERE id=$12',[d.company,d.contact,d.phone,d.email,d.vat_id,d.address_line,d.postal_code,d.city,d.country,d.notification_offers,d.notification_messages,req.user.companyId]);const duplicate=await client.query('SELECT 1 FROM users WHERE lower(email)=lower($1) AND id<>$2',[d.email,req.user.sub]);if(duplicate.rowCount)throw Object.assign(new Error('E-Mail bereits verwendet'),{statusCode:409});await client.query('UPDATE users SET email=lower($1) WHERE id=$2',[d.email,req.user.sub]);await client.query('COMMIT');await audit(req,'settings_updated','company',req.user.companyId);res.json({ok:true});}catch(e){await client.query('ROLLBACK');res.status(e.statusCode||400).json({error:e.message||'Speichern fehlgeschlagen'});}finally{client.release();}});
+app.patch('/api/settings',auth,verified,requireCsrf,async(req,res)=>{
+  const p=settingsSchema.safeParse(req.body); if(!p.success)return res.status(400).json({error:'Ungültige Einstellungen'});
+  const d=p.data, current=await pool.query('SELECT email FROM users WHERE id=$1',[req.user.sub]);
+  if(!current.rowCount)return res.status(401).json({error:'Benutzer nicht gefunden'});
+  if(String(current.rows[0].email).toLowerCase()!==String(d.email).toLowerCase())return res.status(409).json({error:'Die Login-E-Mail kann hier noch nicht geändert werden. Dafür ist eine erneute E-Mail-Bestätigung erforderlich.'});
+  const q=await pool.query('UPDATE companies SET name=$1,contact_name=$2,phone=$3,vat_id=$4,address_line=$5,postal_code=$6,city=$7,country=$8,notification_offers=$9,notification_messages=$10,updated_at=now() WHERE id=$11 RETURNING id,name,role,email,contact_name,phone,vat_id,address_line,postal_code,city,country,notification_offers,notification_messages,is_verified',[d.company,d.contact,d.phone,d.vat_id,d.address_line,d.postal_code,d.city,d.country,d.notification_offers,d.notification_messages,req.user.companyId]);
+  await audit(req,'settings_updated','company',req.user.companyId);
+  res.json({ok:true,company:q.rows[0]});
+});
 
 app.post('/api/transports/:id/rating',auth,verified,requireCsrf,async(req,res)=>{const p=ratingSchema.safeParse(req.body);if(!p.success)return res.status(400).json({error:'Ungültige Bewertung'});const t=await pool.query('SELECT t.*,r.company_id,o.provider_company_id FROM transports t JOIN requests r ON r.id=t.request_id LEFT JOIN offers o ON o.id=t.offer_id WHERE t.id=$1',[req.params.id]);if(!t.rowCount)return res.status(404).json({error:'Transport nicht gefunden'});const x=t.rows[0];const to=x.company_id===req.user.companyId?x.provider_company_id:x.company_id;if(![x.company_id,x.provider_company_id].includes(req.user.companyId)||!to)return res.status(403).json({error:'Nicht berechtigt'});try{const q=await pool.query('INSERT INTO ratings(transport_id,from_company_id,to_company_id,reliability,communication,punctuality,quality,comment) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',[req.params.id,req.user.companyId,to,p.data.reliability,p.data.communication,p.data.punctuality,p.data.quality,p.data.comment]);res.status(201).json({rating:q.rows[0]});}catch(e){if(e.code==='23505')return res.status(409).json({error:'Sie haben diesen Transport bereits bewertet'});throw e;}});
 app.get('/api/companies/:id/ratings',auth,async(req,res)=>{const q=await pool.query('SELECT reliability,communication,punctuality,quality,comment,created_at FROM ratings WHERE to_company_id=$1 ORDER BY created_at DESC',[req.params.id]);res.json({ratings:q.rows});});
@@ -326,7 +336,7 @@ app.get('/admin', (req,res)=>res.sendFile(path.join(root,'public','admin.html'))
 
 app.use(express.static(path.join(root,'public')));
 app.use((req,res)=>{if(req.method==='GET'&&!req.path.startsWith('/api/'))return res.sendFile(path.join(root,'public','index.html'));res.status(404).json({error:'Not found'});});
-app.use((err,req,res,next)=>{console.error(err);if(err instanceof multer.MulterError)return res.status(400).json({error:err.message});res.status(500).json({error:'Interner Serverfehler'});});
+app.use((err,req,res,next)=>{console.error(err);if(err instanceof multer.MulterError)return res.status(400).json({error:err.message});if(err?.code==='22P02'||err?.code==='22007')return res.status(400).json({error:'Ungültige Kennung oder Datumsangabe'});res.status(500).json({error:'Interner Serverfehler'});});
 
 async function ensureBootstrapAdmin(){
   const email=String(process.env.ADMIN_EMAIL||'').trim().toLowerCase();
