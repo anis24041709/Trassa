@@ -13,6 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import nodemailer from 'nodemailer';
+import { persistUpload, removeStored, streamStored, storageDriver } from './storage.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
@@ -30,6 +31,7 @@ const APP_URL = (process.env.APP_URL || `http://localhost:${PORT}`).replace(/\/$
 const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB || 25);
 const uploadDir = path.join(root, 'uploads');
 fs.mkdirSync(uploadDir, { recursive: true });
+if (process.env.NODE_ENV === 'production' && storageDriver() === 'local') console.warn('WARNING: local document storage is not durable. Configure STORAGE_DRIVER=s3 before customer launch.');
 
 app.set('trust proxy', 1);
 app.use(helmet({ contentSecurityPolicy: false }));
@@ -264,7 +266,27 @@ app.post('/api/conversations/:id/messages',auth,verified,requireCsrf,async(req,r
 const storage=multer.diskStorage({destination:(_,__,cb)=>cb(null,uploadDir),filename:(_,file,cb)=>cb(null,`${crypto.randomUUID()}${path.extname(file.originalname).toLowerCase()}`)});
 const upload=multer({storage,limits:{fileSize:MAX_UPLOAD_MB*1024*1024},fileFilter:(_,file,cb)=>{const allowed=['application/pdf','image/jpeg','image/png','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/msword','application/vnd.ms-excel','text/plain'];cb(null,allowed.includes(file.mimetype));}});
 app.get('/api/documents',auth,async(req,res)=>{const a=[req.user.companyId];let sql='SELECT id,original_name,mime_type,size_bytes,sha256,created_at,request_id FROM documents WHERE company_id=$1';if(req.query.request_id){a.push(req.query.request_id);sql+=' AND request_id=$'+a.length;}sql+=' ORDER BY created_at DESC';const q=await pool.query(sql,a);res.json({documents:q.rows});});
-app.post('/api/documents',auth,verified,requireCsrf,upload.single('file'),async(req,res)=>{if(!req.file)return res.status(400).json({error:'Datei fehlt oder Dateityp nicht erlaubt'});let requestId=req.body.request_id||null;if(requestId){const rq=await pool.query('SELECT id,company_id FROM requests WHERE id=$1',[requestId]);if(!rq.rowCount){fs.rmSync(req.file.path,{force:true});return res.status(400).json({error:'Anfrage nicht gefunden'});}if(rq.rows[0].company_id!==req.user.companyId&&!req.userRow.is_admin){fs.rmSync(req.file.path,{force:true});return res.status(403).json({error:'Dokumente können nur vom Anfrage-Eigentümer verknüpft werden'});}}const hash=crypto.createHash('sha256').update(fs.readFileSync(req.file.path)).digest('hex');try{const q=await pool.query('INSERT INTO documents(company_id,request_id,original_name,stored_name,mime_type,size_bytes,sha256) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,original_name,mime_type,size_bytes,created_at,request_id',[req.user.companyId,requestId,req.file.originalname,req.file.filename,req.file.mimetype,req.file.size,hash]);await audit(req,'document_uploaded','document',q.rows[0].id);res.status(201).json({document:q.rows[0]});}catch(e){fs.rmSync(req.file.path,{force:true});throw e;}});
+app.post('/api/documents',auth,verified,requireCsrf,upload.single('file'),async(req,res)=>{
+  if(!req.file)return res.status(400).json({error:'Datei fehlt oder Dateityp nicht erlaubt'});
+  let requestId=req.body.request_id||null;
+  if(requestId){
+    const rq=await pool.query('SELECT id,company_id FROM requests WHERE id=$1',[requestId]);
+    if(!rq.rowCount){fs.rmSync(req.file.path,{force:true});return res.status(400).json({error:'Anfrage nicht gefunden'});}
+    if(rq.rows[0].company_id!==req.user.companyId&&!req.userRow.is_admin){fs.rmSync(req.file.path,{force:true});return res.status(403).json({error:'Dokumente können nur vom Anfrage-Eigentümer verknüpft werden'});}
+  }
+  const hash=crypto.createHash('sha256').update(fs.readFileSync(req.file.path)).digest('hex');
+  let persisted=false;
+  try{
+    await persistUpload(req.file.path,req.file.filename,req.file.mimetype); persisted=true;
+    const q=await pool.query('INSERT INTO documents(company_id,request_id,original_name,stored_name,mime_type,size_bytes,sha256) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,original_name,mime_type,size_bytes,created_at,request_id',[req.user.companyId,requestId,req.file.originalname,req.file.filename,req.file.mimetype,req.file.size,hash]);
+    await audit(req,'document_uploaded','document',q.rows[0].id,{storage:storageDriver()});
+    res.status(201).json({document:q.rows[0]});
+  }catch(error){
+    if(persisted)await removeStored(req.file.filename,uploadDir).catch(()=>{});
+    else fs.rmSync(req.file.path,{force:true});
+    throw error;
+  }
+});
 app.patch('/api/documents/:id',auth,verified,requireCsrf,async(req,res)=>{
   const q=await pool.query('SELECT * FROM documents WHERE id=$1 AND company_id=$2',[req.params.id,req.user.companyId]);
   if(!q.rowCount) return res.status(404).json({error:'Dokument nicht gefunden'});
@@ -281,11 +303,10 @@ app.patch('/api/documents/:id',auth,verified,requireCsrf,async(req,res)=>{
 app.get('/api/documents/:id/download',auth,async(req,res)=>{
   const q=await pool.query(`SELECT d.* FROM documents d LEFT JOIN requests r ON r.id=d.request_id WHERE d.id=$1 AND (d.company_id=$2 OR r.company_id=$2 OR EXISTS(SELECT 1 FROM offers o WHERE o.request_id=d.request_id AND o.provider_company_id=$2) OR $3::boolean=true)`,[req.params.id,req.user.companyId,!!req.userRow.is_admin]);
   if(!q.rowCount)return res.status(404).end();
-  const f=path.resolve(uploadDir,path.basename(String(q.rows[0].stored_name||'')));
-  if(!f.startsWith(path.resolve(uploadDir)+path.sep)&&f!==path.resolve(uploadDir))return res.status(404).end();
-  if(!fs.existsSync(f))return res.status(404).end();
   res.setHeader('X-Content-Type-Options','nosniff');
-  res.download(f,q.rows[0].original_name);
+  res.attachment(q.rows[0].original_name);
+  const found=await streamStored(q.rows[0].stored_name,res,uploadDir);
+  if(!found&&!res.headersSent)return res.status(404).end();
 });
 
 app.get('/api/billing',auth,async(req,res)=>{const q=await pool.query('SELECT * FROM invoices WHERE company_id=$1 ORDER BY invoice_date DESC',[req.user.companyId]);const total=q.rows.reduce((s,x)=>s+x.amount_cents,0);res.json({stats:{total:(total/100).toFixed(2),open:q.rows.filter(x=>x.status==='open').length,paid:q.rows.filter(x=>x.status==='paid').length},invoices:q.rows});});
