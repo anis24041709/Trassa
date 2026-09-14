@@ -33,6 +33,24 @@ services:
         sync: false
       - key: MAX_UPLOAD_MB
         value: 25
+      - key: STORAGE_DRIVER
+        value: local
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_REGION
+        value: eu-central-1
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_PREFIX
+        value: documents
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: S3_FORCE_PATH_STYLE
+        value: false
+      - key: S3_SERVER_SIDE_ENCRYPTION
+        value: AES256
       - key: ADMIN_EMAIL
         sync: false
       - key: ADMIN_PASSWORD
