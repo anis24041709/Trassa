@@ -34,7 +34,8 @@ CREATE TABLE IF NOT EXISTS users (
   reset_token_hash text,
   reset_expires_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
-  last_login_at timestamptz
+  last_login_at timestamptz,
+  session_version integer NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS users_company_idx ON users(company_id);
 
@@ -183,6 +184,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token_hash text;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_expires_at timestamptz;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_hash text;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_expires_at timestamptz;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS session_version integer NOT NULL DEFAULT 0;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS sha256 text;
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS due_date date;
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
