@@ -34,7 +34,25 @@ fs.mkdirSync(uploadDir, { recursive: true });
 if (process.env.NODE_ENV === 'production' && storageDriver() === 'local') console.warn('WARNING: local document storage is not durable. Configure STORAGE_DRIVER=s3 before customer launch.');
 
 app.set('trust proxy', 1);
-app.use(helmet({ contentSecurityPolicy: false }));
+app.use(helmet({
+  contentSecurityPolicy:{
+    directives:{
+      defaultSrc:["'self'"],
+      baseUri:["'self'"],
+      objectSrc:["'none'"],
+      frameAncestors:["'none'"],
+      formAction:["'self'"],
+      scriptSrc:["'self'","'unsafe-inline'"],
+      styleSrc:["'self'","'unsafe-inline'","https://fonts.googleapis.com"],
+      fontSrc:["'self'","https://fonts.gstatic.com","data:"],
+      imgSrc:["'self'","data:"],
+      connectSrc:["'self'"],
+      upgradeInsecureRequests:process.env.NODE_ENV==='production'?[]:null
+    }
+  },
+  referrerPolicy:{policy:'strict-origin-when-cross-origin'}
+}));
+app.use((_,res,next)=>{res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');next();});
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 500, standardHeaders: true, legacyHeaders: false }));
