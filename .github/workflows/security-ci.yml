@@ -1,0 +1,28 @@
+name: Security CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [security-hardening-phase-2]
+
+permissions:
+  contents: read
+
+jobs:
+  backend-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install production dependencies
+        run: npm install --omit=dev --no-audit --no-fund
+      - name: Check backend syntax
+        run: node --check server/index.js
+      - name: Check seed syntax
+        run: node --check server/seed.js

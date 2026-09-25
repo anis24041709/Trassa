@@ -13,6 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import nodemailer from 'nodemailer';
+import { persistUpload, removeStored, streamStored, storageDriver } from './storage.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
@@ -30,20 +31,41 @@ const APP_URL = (process.env.APP_URL || `http://localhost:${PORT}`).replace(/\/$
 const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB || 25);
 const uploadDir = path.join(root, 'uploads');
 fs.mkdirSync(uploadDir, { recursive: true });
+if (process.env.NODE_ENV === 'production' && storageDriver() === 'local') console.warn('WARNING: local document storage is not durable. Configure STORAGE_DRIVER=s3 before customer launch.');
 
 app.set('trust proxy', 1);
-app.use(helmet({ contentSecurityPolicy: false }));
+app.use(helmet({
+  contentSecurityPolicy:{
+    directives:{
+      defaultSrc:["'self'"],
+      baseUri:["'self'"],
+      objectSrc:["'none'"],
+      frameAncestors:["'none'"],
+      formAction:["'self'"],
+      scriptSrc:["'self'","'unsafe-inline'"],
+      styleSrc:["'self'","'unsafe-inline'","https://fonts.googleapis.com"],
+      fontSrc:["'self'","https://fonts.gstatic.com","data:"],
+      imgSrc:["'self'","data:"],
+      connectSrc:["'self'"],
+      upgradeInsecureRequests:process.env.NODE_ENV==='production'?[]:null
+    }
+  },
+  referrerPolicy:{policy:'strict-origin-when-cross-origin'}
+}));
+app.use((_,res,next)=>{res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');next();});
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 500, standardHeaders: true, legacyHeaders: false }));
 
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: true, legacyHeaders: false });
 const passwordLimiter = rateLimit({ windowMs: 60 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false });
+const uploadLimiter = rateLimit({ windowMs: 60 * 60 * 1000, limit: 30, standardHeaders: true, legacyHeaders: false });
+const messageLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 120, standardHeaders: true, legacyHeaders: false });
 const csrfCookie = 'trassa_csrf';
 const sessionCookie = 'trassa_session';
 const token = () => crypto.randomBytes(32).toString('hex');
 const sha = (s) => crypto.createHash('sha256').update(s).digest('hex');
-const sign = (u) => jwt.sign({ sub: u.id, companyId: u.company_id, admin: !!u.is_admin }, JWT_SECRET, { expiresIn: '7d' });
+const sign = (u) => jwt.sign({ sub: u.id, companyId: u.company_id, admin: !!u.is_admin, sv: Number(u.session_version || 0) }, JWT_SECRET, { expiresIn: '7d' });
 function setAuth(res, jwtToken) { res.cookie(sessionCookie, jwtToken, { httpOnly: true, sameSite: 'lax', secure: COOKIE_SECURE, maxAge: 7 * 24 * 3600 * 1000, path: '/' }); }
 function clearAuth(res) { res.clearCookie(sessionCookie, { httpOnly: true, sameSite: 'lax', secure: COOKIE_SECURE, path: '/' }); }
 function ensureCsrf(req, res, next) {
@@ -67,13 +89,17 @@ async function auth(req, res, next) {
     const t = req.cookies[sessionCookie];
     if (!t) return res.status(401).json({ error: 'Nicht angemeldet' });
     req.user = jwt.verify(t, JWT_SECRET);
-    const q = await pool.query('SELECT id,is_active,is_admin,company_id,email,email_verified_at FROM users WHERE id=$1', [req.user.sub]);
+    const q = await pool.query('SELECT id,is_active,is_admin,company_id,email,email_verified_at,session_version FROM users WHERE id=$1', [req.user.sub]);
     if (!q.rowCount || !q.rows[0].is_active) return res.status(401).json({ error: 'Benutzerkonto nicht verfügbar' });
+    if (Number(req.user.sv || 0) !== Number(q.rows[0].session_version || 0)) return res.status(401).json({ error: 'Sitzung wurde widerrufen' });
     req.userRow = q.rows[0];
+    req.user.companyId = q.rows[0].company_id;
+    req.user.admin = !!q.rows[0].is_admin;
     next();
   } catch { return res.status(401).json({ error: 'Sitzung ungültig oder abgelaufen' }); }
 }
 function admin(req, res, next) { if (!req.userRow?.is_admin) return res.status(403).json({ error: 'Admin-Rechte erforderlich' }); next(); }
+function verified(req, res, next) { if (!req.userRow?.email_verified_at) return res.status(403).json({ error: 'Bitte bestätigen Sie zuerst Ihre E-Mail-Adresse' }); next(); }
 async function audit(req, action, entityType = null, entityId = null, metadata = {}) {
   try { await pool.query('INSERT INTO audit_log(user_id,company_id,action,entity_type,entity_id,ip,user_agent,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8)', [req.user?.sub || null, req.user?.companyId || null, action, entityType, entityId, req.ip, req.get('user-agent') || '', JSON.stringify(metadata)]); } catch (e) { console.error('audit', e.message); }
 }
@@ -114,7 +140,7 @@ app.post('/api/auth/register', authLimiter, ensureCsrf, requireCsrf, async (req,
     const exists=await client.query('SELECT 1 FROM users WHERE lower(email)=lower($1)',[d.email]); if(exists.rowCount){await client.query('ROLLBACK');return res.status(409).json({error:'E-Mail ist bereits registriert'});}
     const contactName=[d.first_name,d.last_name].filter(Boolean).join(' '); const c=await client.query('INSERT INTO companies(name,role,email,contact_name) VALUES($1,$2,lower($3),$4) RETURNING *',[d.company,d.role,d.email,contactName]);
     const hash=await bcrypt.hash(d.password,12);
-    const u=await client.query('INSERT INTO users(company_id,email,password_hash,first_name,last_name,verification_token_hash,verification_expires_at) VALUES($1,lower($2),$3,$4,$5,$6,now()+interval \'24 hours\') RETURNING id,company_id,email,first_name,last_name,is_admin,email_verified_at',[c.rows[0].id,d.email,hash,d.first_name,d.last_name,sha(raw)]);
+    const u=await client.query('INSERT INTO users(company_id,email,password_hash,first_name,last_name,verification_token_hash,verification_expires_at) VALUES($1,lower($2),$3,$4,$5,$6,now()+interval \'24 hours\') RETURNING id,company_id,email,first_name,last_name,is_admin,email_verified_at,session_version',[c.rows[0].id,d.email,hash,d.first_name,d.last_name,sha(raw)]);
     await client.query('COMMIT');
     const sent=await sendMail(d.email,'TRASSA E-Mail bestätigen',`<p>Willkommen bei TRASSA.</p><p>Bitte bestätigen Sie Ihre E-Mail:</p><p><a href="${APP_URL}/api/auth/verify-email?token=${raw}">E-Mail bestätigen</a></p>`);
     // Ohne SMTP nur außerhalb Production automatisch verifizieren (lokaler/Test-Betrieb)
@@ -140,7 +166,7 @@ app.post('/api/auth/login', authLimiter, ensureCsrf, requireCsrf, async(req,res)
 app.post('/api/auth/logout',ensureCsrf,requireCsrf,(req,res)=>{clearAuth(res);res.status(204).end();});
 app.get('/api/auth/me',auth,async(req,res)=>{const q=await pool.query(`SELECT u.id user_id,u.email,u.first_name,u.last_name,u.is_admin,u.email_verified_at,u.company_id,c.name company_name,c.role,c.contact_name,c.phone,c.notification_offers,c.notification_messages,c.is_verified FROM users u JOIN companies c ON c.id=u.company_id WHERE u.id=$1`,[req.user.sub]);if(!q.rowCount)return res.status(401).json({error:'Benutzer nicht gefunden'});const x=q.rows[0];res.json({user:{id:x.user_id,email:x.email,first_name:x.first_name,last_name:x.last_name,is_admin:x.is_admin,email_verified_at:x.email_verified_at,company:{id:x.company_id,name:x.company_name,role:x.role,contact_name:x.contact_name,phone:x.phone,notification_offers:x.notification_offers,notification_messages:x.notification_messages,is_verified:x.is_verified}}});});
 app.post('/api/auth/forgot-password',passwordLimiter,ensureCsrf,requireCsrf,async(req,res)=>{const p=z.object({email:z.string().email()}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Ungültige E-Mail'});const q=await pool.query('SELECT id,email FROM users WHERE lower(email)=lower($1) AND is_active=true',[p.data.email]);let devToken=null;if(q.rowCount){const raw=token();await pool.query('UPDATE users SET reset_token_hash=$1,reset_expires_at=now()+interval \'1 hour\' WHERE id=$2',[sha(raw),q.rows[0].id]);const sent=await sendMail(q.rows[0].email,'TRASSA Passwort zurücksetzen',`<p>Passwort zurücksetzen: <a href="${APP_URL}/reset-password?token=${raw}">Neues Passwort setzen</a></p>`);if(!sent){devToken=raw;console.log('Password reset token (SMTP off):',raw);}await audit({user:{sub:q.rows[0].id}},'password_reset_requested');}const payload={ok:true,message:'Wenn die Adresse existiert, wurde eine E-Mail versendet.'};if(devToken&&process.env.NODE_ENV!=='production'){payload.devResetToken=devToken;payload.devResetUrl=`${APP_URL}/reset-password?token=${devToken}`;}res.json(payload);});
-app.post('/api/auth/reset-password',passwordLimiter,ensureCsrf,requireCsrf,async(req,res)=>{const p=z.object({token:z.string().min(20),password:z.string().min(10).max(128)}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Ungültige Daten'});const q=await pool.query('SELECT id FROM users WHERE reset_token_hash=$1 AND reset_expires_at>now()',[sha(p.data.token)]);if(!q.rowCount)return res.status(400).json({error:'Token ungültig oder abgelaufen'});await pool.query('UPDATE users SET password_hash=$1,reset_token_hash=NULL,reset_expires_at=NULL WHERE id=$2',[await bcrypt.hash(p.data.password,12),q.rows[0].id]);res.json({ok:true});});
+app.post('/api/auth/reset-password',passwordLimiter,ensureCsrf,requireCsrf,async(req,res)=>{const p=z.object({token:z.string().min(20),password:z.string().min(10).max(128)}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Ungültige Daten'});const q=await pool.query('SELECT id FROM users WHERE reset_token_hash=$1 AND reset_expires_at>now()',[sha(p.data.token)]);if(!q.rowCount)return res.status(400).json({error:'Token ungültig oder abgelaufen'});await pool.query('UPDATE users SET password_hash=$1,reset_token_hash=NULL,reset_expires_at=NULL,session_version=session_version+1 WHERE id=$2',[await bcrypt.hash(p.data.password,12),q.rows[0].id]);res.json({ok:true});});
 
 function fmtDate(v){if(!v)return '';const d=v instanceof Date?v:new Date(v);if(Number.isNaN(d.getTime()))return String(v).slice(0,10);return d.toISOString().slice(0,10);}function requestDto(r){const from=fmtDate(r.from_date);const to=fmtDate(r.to_date);return {...r,id:r.id,from_date:from||r.from_date,to_date:to||r.to_date,request_number:`#TR-${r.public_id}`,route:`${r.start_location} → ${r.destination}`,zeit:from&&to?`${from} – ${to}`:(from||to||''),gewicht:r.weight_t?`${r.weight_t} t`:'',spur:r.loading_gauge||'',badge:r.hazardous_goods?'Gefahrgut':'Offen',gefahr:r.hazardous_goods,status:r.status};}
 app.get('/api/dashboard',auth,async(req,res)=>{const [open,trans,offers,msg,reqs,act]=await Promise.all([pool.query("SELECT count(*)::int n FROM requests WHERE status IN ('new','progress') AND company_id<>$1",[req.user.companyId]),pool.query("SELECT count(*)::int n FROM transports t JOIN requests r ON r.id=t.request_id WHERE (r.company_id=$1 OR EXISTS(SELECT 1 FROM offers o WHERE o.id=t.offer_id AND o.provider_company_id=$1)) AND t.status NOT IN ('done','cancelled')",[req.user.companyId]),pool.query("SELECT count(*)::int n FROM offers o JOIN requests r ON r.id=o.request_id WHERE r.company_id=$1 AND o.status='pending'",[req.user.companyId]),pool.query("SELECT count(*)::int n FROM messages m JOIN conversation_members cm ON cm.conversation_id=m.conversation_id WHERE cm.company_id=$1 AND m.sender_user_id<>$2 AND m.read_at IS NULL",[req.user.companyId,req.user.sub]),pool.query("SELECT r.*,count(o.id)::int offers FROM requests r LEFT JOIN offers o ON o.request_id=r.id WHERE r.company_id=$1 GROUP BY r.id ORDER BY r.created_at DESC LIMIT 5",[req.user.companyId]),pool.query('SELECT icon,text,created_at FROM activity WHERE company_id=$1 ORDER BY created_at DESC LIMIT 10',[req.user.companyId])]);res.json({kpi:{open:open.rows[0].n,transports:trans.rows[0].n,offers:offers.rows[0].n,messages:msg.rows[0].n},requests:reqs.rows.map(requestDto),activity:act.rows});});
@@ -156,9 +182,9 @@ if(isOwner||offered.rowCount){
   docs=dq.rows;
 }
 res.json({request:requestDto(r),documents:docs});});
-app.post('/api/requests',auth,requireCsrf,async(req,res)=>{const p=requestSchema.safeParse(req.body);if(!p.success)return res.status(400).json({error:'Ungültige Anfrage'});const d=p.data;if(d.status==='new'&&(!d.start||!d.ziel||!d.titel))return res.status(400).json({error:'Start, Ziel und Titel sind erforderlich'});const q=await pool.query(`INSERT INTO requests(company_id,start_location,destination,from_date,to_date,weight_t,loading_gauge,wagon_type,hazardous_goods,title,description,status) VALUES($1,$2,$3,NULLIF($4,'')::date,NULLIF($5,'')::date,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,[req.user.companyId,d.start,d.ziel,d.von,d.bis,d.gewicht,d.lichtKey||null,d.wagenartKey||null,d.gefahrValue==='ja',d.titel,d.beschreibung,d.status]);await activity(req.user.companyId,'📋',`Anfrage #TR-${q.rows[0].public_id} wurde ${d.status==='draft'?'als Entwurf gespeichert':'veröffentlicht'}`);await audit(req,'request_created','request',q.rows[0].id);res.status(201).json({request:requestDto(q.rows[0])});});
+app.post('/api/requests',auth,verified,requireCsrf,async(req,res)=>{const p=requestSchema.safeParse(req.body);if(!p.success)return res.status(400).json({error:'Ungültige Anfrage'});const d=p.data;if(d.status==='new'&&(!d.start||!d.ziel||!d.titel))return res.status(400).json({error:'Start, Ziel und Titel sind erforderlich'});const q=await pool.query(`INSERT INTO requests(company_id,start_location,destination,from_date,to_date,weight_t,loading_gauge,wagon_type,hazardous_goods,title,description,status) VALUES($1,$2,$3,NULLIF($4,'')::date,NULLIF($5,'')::date,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,[req.user.companyId,d.start,d.ziel,d.von,d.bis,d.gewicht,d.lichtKey||null,d.wagenartKey||null,d.gefahrValue==='ja',d.titel,d.beschreibung,d.status]);await activity(req.user.companyId,'📋',`Anfrage #TR-${q.rows[0].public_id} wurde ${d.status==='draft'?'als Entwurf gespeichert':'veröffentlicht'}`);await audit(req,'request_created','request',q.rows[0].id);res.status(201).json({request:requestDto(q.rows[0])});});
 
-app.patch('/api/requests/:id',auth,requireCsrf,async(req,res)=>{
+app.patch('/api/requests/:id',auth,verified,requireCsrf,async(req,res)=>{
   const existing=await pool.query('SELECT * FROM requests WHERE id=$1',[req.params.id]);
   if(!existing.rowCount) return res.status(404).json({error:'Anfrage nicht gefunden'});
   const r=existing.rows[0];
@@ -203,27 +229,105 @@ app.patch('/api/requests/:id',auth,requireCsrf,async(req,res)=>{
   res.json({request:dto});
 });
 
-app.post('/api/requests/:id/offers',auth,requireCsrf,async(req,res)=>{const p=offerSchema.safeParse(req.body);if(!p.success)return res.status(400).json({error:'Ungültiges Angebot'});const r=await pool.query('SELECT * FROM requests WHERE id=$1',[req.params.id]);if(!r.rowCount)return res.status(404).json({error:'Anfrage nicht gefunden'});if(r.rows[0].company_id===req.user.companyId)return res.status(400).json({error:'Sie können auf die eigene Anfrage kein Angebot abgeben'});if(!['new','progress'].includes(r.rows[0].status))return res.status(400).json({error:'Anfrage ist nicht offen'});try{const q=await pool.query(`INSERT INTO offers(request_id,provider_company_id,price_cents,valid_until,contact_name,note) VALUES($1,$2,$3,NULLIF($4,'')::date,$5,$6) RETURNING *`,[req.params.id,req.user.companyId,p.data.price_cents,p.data.valid_until,p.data.contact_name,p.data.note]);await activity(r.rows[0].company_id,'💼',`Neues Angebot für #TR-${r.rows[0].public_id}`);await audit(req,'offer_created','offer',q.rows[0].id);res.status(201).json({offer:q.rows[0]});}catch(e){if(e.code==='23505')return res.status(409).json({error:'Ihr Unternehmen hat bereits ein Angebot abgegeben'});throw e;}});
+app.post('/api/requests/:id/offers',auth,verified,requireCsrf,async(req,res)=>{const p=offerSchema.safeParse(req.body);if(!p.success)return res.status(400).json({error:'Ungültiges Angebot'});const r=await pool.query('SELECT * FROM requests WHERE id=$1',[req.params.id]);if(!r.rowCount)return res.status(404).json({error:'Anfrage nicht gefunden'});if(r.rows[0].company_id===req.user.companyId)return res.status(400).json({error:'Sie können auf die eigene Anfrage kein Angebot abgeben'});if(!['new','progress'].includes(r.rows[0].status))return res.status(400).json({error:'Anfrage ist nicht offen'});try{const q=await pool.query(`INSERT INTO offers(request_id,provider_company_id,price_cents,valid_until,contact_name,note) VALUES($1,$2,$3,NULLIF($4,'')::date,$5,$6) RETURNING *`,[req.params.id,req.user.companyId,p.data.price_cents,p.data.valid_until,p.data.contact_name,p.data.note]);await activity(r.rows[0].company_id,'💼',`Neues Angebot für #TR-${r.rows[0].public_id}`);await audit(req,'offer_created','offer',q.rows[0].id);res.status(201).json({offer:q.rows[0]});}catch(e){if(e.code==='23505')return res.status(409).json({error:'Ihr Unternehmen hat bereits ein Angebot abgegeben'});throw e;}});
 app.get('/api/offers',auth,async(req,res)=>{const q=await pool.query(`SELECT o.*,r.public_id,r.company_id request_company,r.start_location,r.destination,r.from_date,r.to_date,provider.name provider_name,customer.name customer_name FROM offers o JOIN requests r ON r.id=o.request_id JOIN companies provider ON provider.id=o.provider_company_id JOIN companies customer ON customer.id=r.company_id WHERE r.company_id=$1 OR o.provider_company_id=$1 ORDER BY o.created_at DESC`,[req.user.companyId]);res.json({offers:q.rows.map(o=>({...o,id:o.id,request_id:o.request_id,provider_company_id:o.provider_company_id,price_cents:o.price_cents,route:`${o.start_location} → ${o.destination}`,direction:o.request_company===req.user.companyId?'incoming':'outgoing',partner:o.request_company===req.user.companyId?o.provider_name:o.customer_name,price:(o.price_cents/100).toLocaleString('de-DE',{style:'currency',currency:'EUR'}),date:o.created_at,validUntil:o.valid_until,note:o.note,status:o.status,contact:o.contact_name,request_company:o.request_company}))});});
 
 app.get('/api/offers/:id',auth,async(req,res)=>{const q=await pool.query(`SELECT o.*,r.public_id,r.company_id request_company,r.start_location,r.destination,r.from_date,r.to_date,provider.name provider_name,customer.name customer_name FROM offers o JOIN requests r ON r.id=o.request_id JOIN companies provider ON provider.id=o.provider_company_id JOIN companies customer ON customer.id=r.company_id WHERE o.id=$1 AND (r.company_id=$2 OR o.provider_company_id=$2)`,[req.params.id,req.user.companyId]);if(!q.rowCount)return res.status(404).json({error:'Angebot nicht gefunden'});const o=q.rows[0];res.json({offer:{...o,id:o.id,request_id:o.request_id,provider_company_id:o.provider_company_id,price_cents:o.price_cents,route:`${o.start_location} → ${o.destination}`,partner:o.request_company===req.user.companyId?o.provider_name:o.customer_name,price:(o.price_cents/100).toLocaleString('de-DE',{style:'currency',currency:'EUR'}),date:o.created_at,validUntil:o.valid_until,note:o.note,status:o.status,contact:o.contact_name,request_company:o.request_company}});});
 
-app.patch('/api/offers/:id/price',auth,requireCsrf,async(req,res)=>{const p=offerPriceSchema.safeParse(req.body);if(!p.success)return res.status(400).json({error:'Ungültiger Preis'});const q=await pool.query('SELECT o.*,r.company_id request_company,r.public_id FROM offers o JOIN requests r ON r.id=o.request_id WHERE o.id=$1',[req.params.id]);if(!q.rowCount)return res.status(404).json({error:'Angebot nicht gefunden'});const o=q.rows[0];if(o.provider_company_id!==req.user.companyId)return res.status(403).json({error:'Nur der Anbieter kann den Preis anpassen'});if(o.status!=='pending')return res.status(400).json({error:'Nur offene Angebote können angepasst werden'});const u=await pool.query('UPDATE offers SET price_cents=$1,updated_at=now() WHERE id=$2 RETURNING *',[p.data.price_cents,o.id]);await activity(o.request_company,'💼',`Preis für Angebot zu #TR-${o.public_id} wurde angepasst`);await audit(req,'offer_price_changed','offer',o.id,{price_cents:p.data.price_cents});res.json({offer:u.rows[0]});});
-app.patch('/api/offers/:id',auth,requireCsrf,async(req,res)=>{const p=offerActionSchema.safeParse(req.body);if(!p.success)return res.status(400).json({error:'Ungültiger Status'});const q=await pool.query('SELECT o.*,r.company_id request_company,r.public_id FROM offers o JOIN requests r ON r.id=o.request_id WHERE o.id=$1',[req.params.id]);if(!q.rowCount)return res.status(404).json({error:'Angebot nicht gefunden'});const o=q.rows[0];if(o.request_company!==req.user.companyId&&o.provider_company_id!==req.user.companyId)return res.status(403).json({error:'Nicht berechtigt'});if(p.data.status==='accepted'&&o.request_company!==req.user.companyId)return res.status(403).json({error:'Nur der Auftraggeber kann annehmen'});if(p.data.status==='withdrawn'&&o.provider_company_id!==req.user.companyId)return res.status(403).json({error:'Nur der Anbieter kann zurückziehen'});const client=await pool.connect();try{await client.query('BEGIN');const u=await client.query('UPDATE offers SET status=$1,updated_at=now() WHERE id=$2 RETURNING *',[p.data.status,o.id]);if(p.data.status==='accepted'){await client.query("UPDATE offers SET status='declined',updated_at=now() WHERE request_id=$1 AND id<>$2 AND status='pending'",[o.request_id,o.id]);await client.query("UPDATE requests SET status='awarded',updated_at=now() WHERE id=$1",[o.request_id]);await client.query("INSERT INTO transports(request_id,offer_id,status,scheduled_from,scheduled_to) VALUES($1,$2,'planned',(SELECT from_date FROM requests WHERE id=$1),(SELECT to_date FROM requests WHERE id=$1)) ON CONFLICT (request_id) DO UPDATE SET offer_id=EXCLUDED.offer_id,updated_at=now()",[o.request_id,o.id]);}await client.query('COMMIT');await activity(o.request_company,'💼',`Angebot für #TR-${o.public_id}: ${p.data.status}`);await audit(req,'offer_status_changed','offer',o.id,{status:p.data.status});res.json({offer:u.rows[0]});}catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}});
+app.patch('/api/offers/:id/price',auth,verified,requireCsrf,async(req,res)=>{const p=offerPriceSchema.safeParse(req.body);if(!p.success)return res.status(400).json({error:'Ungültiger Preis'});const q=await pool.query('SELECT o.*,r.company_id request_company,r.public_id FROM offers o JOIN requests r ON r.id=o.request_id WHERE o.id=$1',[req.params.id]);if(!q.rowCount)return res.status(404).json({error:'Angebot nicht gefunden'});const o=q.rows[0];if(o.provider_company_id!==req.user.companyId)return res.status(403).json({error:'Nur der Anbieter kann den Preis anpassen'});if(o.status!=='pending')return res.status(400).json({error:'Nur offene Angebote können angepasst werden'});const u=await pool.query('UPDATE offers SET price_cents=$1,updated_at=now() WHERE id=$2 RETURNING *',[p.data.price_cents,o.id]);await activity(o.request_company,'💼',`Preis für Angebot zu #TR-${o.public_id} wurde angepasst`);await audit(req,'offer_price_changed','offer',o.id,{price_cents:p.data.price_cents});res.json({offer:u.rows[0]});});
+app.patch('/api/offers/:id',auth,verified,requireCsrf,async(req,res)=>{
+  const p=offerActionSchema.safeParse(req.body); if(!p.success)return res.status(400).json({error:'Ungültiger Status'});
+  const client=await pool.connect();
+  try{
+    await client.query('BEGIN');
+    const q=await client.query('SELECT o.*,r.company_id request_company,r.public_id,r.status request_status FROM offers o JOIN requests r ON r.id=o.request_id WHERE o.id=$1 FOR UPDATE OF o,r',[req.params.id]);
+    if(!q.rowCount){await client.query('ROLLBACK');return res.status(404).json({error:'Angebot nicht gefunden'});}
+    const o=q.rows[0];
+    if(o.request_company!==req.user.companyId&&o.provider_company_id!==req.user.companyId){await client.query('ROLLBACK');return res.status(403).json({error:'Nicht berechtigt'});}
+    if(o.status!=='pending'){await client.query('ROLLBACK');return res.status(409).json({error:'Nur offene Angebote können geändert werden'});}
+    if(p.data.status==='accepted'&&o.request_company!==req.user.companyId){await client.query('ROLLBACK');return res.status(403).json({error:'Nur der Auftraggeber kann annehmen'});}
+    if(p.data.status==='declined'&&o.request_company!==req.user.companyId){await client.query('ROLLBACK');return res.status(403).json({error:'Nur der Auftraggeber kann ablehnen'});}
+    if(p.data.status==='withdrawn'&&o.provider_company_id!==req.user.companyId){await client.query('ROLLBACK');return res.status(403).json({error:'Nur der Anbieter kann zurückziehen'});}
+    if(p.data.status==='accepted'&&!['new','progress'].includes(o.request_status)){await client.query('ROLLBACK');return res.status(409).json({error:'Die Anfrage ist nicht mehr offen'});}
+    const u=await client.query("UPDATE offers SET status=$1,updated_at=now() WHERE id=$2 AND status='pending' RETURNING *",[p.data.status,o.id]);
+    if(!u.rowCount){await client.query('ROLLBACK');return res.status(409).json({error:'Angebot wurde bereits geändert'});}
+    if(p.data.status==='accepted'){
+      await client.query("UPDATE offers SET status='declined',updated_at=now() WHERE request_id=$1 AND id<>$2 AND status='pending'",[o.request_id,o.id]);
+      await client.query("UPDATE requests SET status='awarded',updated_at=now() WHERE id=$1 AND status IN ('new','progress')",[o.request_id]);
+      await client.query("INSERT INTO transports(request_id,offer_id,status,scheduled_from,scheduled_to) VALUES($1,$2,'planned',(SELECT from_date FROM requests WHERE id=$1),(SELECT to_date FROM requests WHERE id=$1))",[o.request_id,o.id]);
+    }
+    await client.query('COMMIT');
+    await activity(o.request_company,'💼',`Angebot für #TR-${o.public_id}: ${p.data.status}`);
+    await audit(req,'offer_status_changed','offer',o.id,{status:p.data.status});
+    res.json({offer:u.rows[0]});
+  }catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}
+});
 
 app.get('/api/transports',auth,async(req,res)=>{const q=await pool.query(`SELECT t.*,r.public_id,r.company_id,r.start_location,r.destination,r.from_date,r.to_date,o.provider_company_id FROM transports t JOIN requests r ON r.id=t.request_id LEFT JOIN offers o ON o.id=t.offer_id WHERE r.company_id=$1 OR o.provider_company_id=$1 ORDER BY t.scheduled_from NULLS LAST,t.created_at DESC`,[req.user.companyId]);const rated=await pool.query('SELECT transport_id FROM ratings WHERE from_company_id=$1',[req.user.companyId]);const ratedSet=new Set(rated.rows.map(r=>r.transport_id));res.json({transports:q.rows.map(t=>({id:t.id,public_id:t.public_id,route:`${t.start_location} → ${t.destination}`,zeit:t.from_date&&t.to_date?`${t.from_date} – ${t.to_date}`:'',status:t.status,request_id:t.request_id,company_id:t.company_id,provider_company_id:t.provider_company_id,rated:ratedSet.has(t.id)}))});});
-app.patch('/api/transports/:id',auth,requireCsrf,async(req,res)=>{const p=z.object({status:z.enum(['planned','underway','done','cancelled'])}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Ungültiger Status'});const q=await pool.query('SELECT t.*,r.company_id,o.provider_company_id FROM transports t JOIN requests r ON r.id=t.request_id LEFT JOIN offers o ON o.id=t.offer_id WHERE t.id=$1',[req.params.id]);if(!q.rowCount)return res.status(404).json({error:'Transport nicht gefunden'});if(q.rows[0].company_id!==req.user.companyId&&q.rows[0].provider_company_id!==req.user.companyId)return res.status(403).json({error:'Nicht berechtigt'});const u=await pool.query('UPDATE transports SET status=$1,updated_at=now() WHERE id=$2 RETURNING *',[p.data.status,req.params.id]);await audit(req,'transport_status_changed','transport',req.params.id,{status:p.data.status});res.json({transport:u.rows[0]});});
+app.patch('/api/transports/:id',auth,verified,requireCsrf,async(req,res)=>{
+  const p=z.object({status:z.enum(['underway','done','cancelled'])}).safeParse(req.body); if(!p.success)return res.status(400).json({error:'Ungültiger Status'});
+  const q=await pool.query('SELECT t.*,r.company_id,o.provider_company_id FROM transports t JOIN requests r ON r.id=t.request_id LEFT JOIN offers o ON o.id=t.offer_id WHERE t.id=$1',[req.params.id]);
+  if(!q.rowCount)return res.status(404).json({error:'Transport nicht gefunden'});
+  const t=q.rows[0], isCustomer=t.company_id===req.user.companyId, isProvider=t.provider_company_id===req.user.companyId;
+  if(!isCustomer&&!isProvider)return res.status(403).json({error:'Nicht berechtigt'});
+  const allowed=(isProvider&&t.status==='planned'&&p.data.status==='underway')||(isProvider&&t.status==='underway'&&p.data.status==='done')||(isCustomer&&['planned','underway'].includes(t.status)&&p.data.status==='cancelled');
+  if(!allowed)return res.status(409).json({error:'Dieser Statuswechsel ist für Ihre Rolle nicht erlaubt'});
+  const u=await pool.query('UPDATE transports SET status=$1,updated_at=now() WHERE id=$2 AND status=$3 RETURNING *',[p.data.status,req.params.id,t.status]);
+  if(!u.rowCount)return res.status(409).json({error:'Transportstatus wurde zwischenzeitlich geändert'});
+  await audit(req,'transport_status_changed','transport',req.params.id,{from:t.status,to:p.data.status});
+  res.json({transport:u.rows[0]});
+});
 
 app.get('/api/conversations',auth,async(req,res)=>{const q=await pool.query(`SELECT c.id,c.request_id,coalesce(max(m.created_at),c.created_at) last_at,coalesce((SELECT body FROM messages m2 WHERE m2.conversation_id=c.id ORDER BY created_at DESC LIMIT 1),'') last,(SELECT count(*) FROM messages mu WHERE mu.conversation_id=c.id AND mu.sender_user_id<>$1 AND mu.read_at IS NULL)::int unread,string_agg(DISTINCT cp.name, ', ') names FROM conversations c JOIN conversation_members cm ON cm.conversation_id=c.id JOIN companies cp ON cp.id=cm.company_id LEFT JOIN messages m ON m.conversation_id=c.id WHERE cm.company_id=$2 GROUP BY c.id ORDER BY last_at DESC`,[req.user.sub,req.user.companyId]);res.json({conversations:q.rows});});
-app.post('/api/conversations',auth,requireCsrf,async(req,res)=>{const p=z.object({request_id:z.string().uuid(),company_id:z.string().uuid().optional()}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Ungültige Gesprächsdaten'});const r=await pool.query('SELECT company_id,status FROM requests WHERE id=$1',[p.data.request_id]);if(!r.rowCount)return res.status(404).json({error:'Anfrage nicht gefunden'});const ownerCompanyId=r.rows[0].company_id;let partnerCompanyId=null;if(ownerCompanyId===req.user.companyId){partnerCompanyId=p.data.company_id||null;if(!partnerCompanyId||partnerCompanyId===req.user.companyId)return res.status(400).json({error:'Ungültiger Gesprächspartner'});}else{if(r.rows[0].status==='draft')return res.status(403).json({error:'Nicht berechtigt'});if(p.data.company_id&&p.data.company_id!==ownerCompanyId)return res.status(403).json({error:'Gesprächspartner muss der Auftraggeber sein'});partnerCompanyId=ownerCompanyId;}const client=await pool.connect();try{await client.query('BEGIN');let c=await client.query('SELECT c.id FROM conversations c JOIN conversation_members a ON a.conversation_id=c.id AND a.company_id=$1 JOIN conversation_members b ON b.conversation_id=c.id AND b.company_id=$2 WHERE c.request_id=$3 LIMIT 1',[req.user.companyId,partnerCompanyId,p.data.request_id]);if(!c.rowCount){c=await client.query('INSERT INTO conversations(request_id) VALUES($1) RETURNING id',[p.data.request_id]);await client.query('INSERT INTO conversation_members(conversation_id,company_id) VALUES($1,$2),($1,$3)',[c.rows[0].id,req.user.companyId,partnerCompanyId]);}await client.query('COMMIT');res.status(201).json({conversation:{id:c.rows[0].id}});}catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}});
+app.post('/api/conversations',auth,verified,requireCsrf,async(req,res)=>{const p=z.object({request_id:z.string().uuid(),company_id:z.string().uuid().optional()}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Ungültige Gesprächsdaten'});const r=await pool.query('SELECT company_id,status FROM requests WHERE id=$1',[p.data.request_id]);if(!r.rowCount)return res.status(404).json({error:'Anfrage nicht gefunden'});const ownerCompanyId=r.rows[0].company_id;let partnerCompanyId=null;if(ownerCompanyId===req.user.companyId){partnerCompanyId=p.data.company_id||null;if(!partnerCompanyId||partnerCompanyId===req.user.companyId)return res.status(400).json({error:'Ungültiger Gesprächspartner'});const offered=await pool.query('SELECT 1 FROM offers WHERE request_id=$1 AND provider_company_id=$2 LIMIT 1',[p.data.request_id,partnerCompanyId]);if(!offered.rowCount)return res.status(403).json({error:'Gespräche sind nur mit Anbietern möglich, die ein Angebot abgegeben haben'});}else{if(r.rows[0].status==='draft')return res.status(403).json({error:'Nicht berechtigt'});if(p.data.company_id&&p.data.company_id!==ownerCompanyId)return res.status(403).json({error:'Gesprächspartner muss der Auftraggeber sein'});partnerCompanyId=ownerCompanyId;}const client=await pool.connect();try{await client.query('BEGIN');let c=await client.query('SELECT c.id FROM conversations c JOIN conversation_members a ON a.conversation_id=c.id AND a.company_id=$1 JOIN conversation_members b ON b.conversation_id=c.id AND b.company_id=$2 WHERE c.request_id=$3 LIMIT 1',[req.user.companyId,partnerCompanyId,p.data.request_id]);if(!c.rowCount){c=await client.query('INSERT INTO conversations(request_id) VALUES($1) RETURNING id',[p.data.request_id]);await client.query('INSERT INTO conversation_members(conversation_id,company_id) VALUES($1,$2),($1,$3)',[c.rows[0].id,req.user.companyId,partnerCompanyId]);}await client.query('COMMIT');res.status(201).json({conversation:{id:c.rows[0].id}});}catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}});
 app.get('/api/conversations/:id/messages',auth,async(req,res)=>{const member=await pool.query('SELECT 1 FROM conversation_members WHERE conversation_id=$1 AND company_id=$2',[req.params.id,req.user.companyId]);if(!member.rowCount)return res.status(403).json({error:'Nicht berechtigt'});await pool.query('UPDATE messages SET read_at=now() WHERE conversation_id=$1 AND sender_user_id<>$2 AND read_at IS NULL',[req.params.id,req.user.sub]);const q=await pool.query('SELECT m.id,m.body,m.created_at,m.sender_user_id FROM messages m WHERE m.conversation_id=$1 ORDER BY created_at',[req.params.id]);res.json({messages:q.rows});});
-app.post('/api/conversations/:id/messages',auth,requireCsrf,async(req,res)=>{const p=messageSchema.safeParse(req.body);if(!p.success)return res.status(400).json({error:'Nachricht fehlt'});const member=await pool.query('SELECT 1 FROM conversation_members WHERE conversation_id=$1 AND company_id=$2',[req.params.id,req.user.companyId]);if(!member.rowCount)return res.status(403).json({error:'Nicht berechtigt'});const q=await pool.query('INSERT INTO messages(conversation_id,sender_user_id,body) VALUES($1,$2,$3) RETURNING *',[req.params.id,req.user.sub,p.data.body]);res.status(201).json({message:q.rows[0]});});
+app.post('/api/conversations/:id/messages',messageLimiter,auth,verified,requireCsrf,async(req,res)=>{const p=messageSchema.safeParse(req.body);if(!p.success)return res.status(400).json({error:'Nachricht fehlt'});const member=await pool.query('SELECT 1 FROM conversation_members WHERE conversation_id=$1 AND company_id=$2',[req.params.id,req.user.companyId]);if(!member.rowCount)return res.status(403).json({error:'Nicht berechtigt'});const q=await pool.query('INSERT INTO messages(conversation_id,sender_user_id,body) VALUES($1,$2,$3) RETURNING *',[req.params.id,req.user.sub,p.data.body]);res.status(201).json({message:q.rows[0]});});
 
 const storage=multer.diskStorage({destination:(_,__,cb)=>cb(null,uploadDir),filename:(_,file,cb)=>cb(null,`${crypto.randomUUID()}${path.extname(file.originalname).toLowerCase()}`)});
-const upload=multer({storage,limits:{fileSize:MAX_UPLOAD_MB*1024*1024},fileFilter:(_,file,cb)=>{const allowed=['application/pdf','image/jpeg','image/png','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/msword','application/vnd.ms-excel','text/plain'];cb(null,allowed.includes(file.mimetype));}});
+const allowedUploadTypes=new Set(['application/pdf','image/jpeg','image/png','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/msword','application/vnd.ms-excel','text/plain']);
+const upload=multer({storage,limits:{fileSize:MAX_UPLOAD_MB*1024*1024,files:1,fields:5},fileFilter:(_,file,cb)=>cb(null,allowedUploadTypes.has(file.mimetype))});
+function safeOriginalName(value){
+  const clean=path.basename(String(value||'document')).replace(/[\u0000-\u001f\u007f]/g,'').trim();
+  return (clean||'document').slice(0,200);
+}
+function uploadSignatureMatches(filePath,mimeType){
+  const fd=fs.openSync(filePath,'r');
+  try{
+    const head=Buffer.alloc(16);const count=fs.readSync(fd,head,0,head.length,0);const b=head.subarray(0,count);
+    if(mimeType==='application/pdf')return b.subarray(0,5).toString()==='%PDF-';
+    if(mimeType==='image/png')return b.length>=8&&b.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
+    if(mimeType==='image/jpeg')return b.length>=3&&b[0]===0xff&&b[1]===0xd8&&b[2]===0xff;
+    if(mimeType.includes('openxmlformats'))return b.length>=4&&b[0]===0x50&&b[1]===0x4b&&[0x03,0x05,0x07].includes(b[2])&&[0x04,0x06,0x08].includes(b[3]);
+    if(mimeType==='application/msword'||mimeType==='application/vnd.ms-excel')return b.length>=8&&b.subarray(0,8).equals(Buffer.from([0xd0,0xcf,0x11,0xe0,0xa1,0xb1,0x1a,0xe1]));
+    if(mimeType==='text/plain')return !b.includes(0);
+    return false;
+  }finally{fs.closeSync(fd);}
+}
 app.get('/api/documents',auth,async(req,res)=>{const a=[req.user.companyId];let sql='SELECT id,original_name,mime_type,size_bytes,sha256,created_at,request_id FROM documents WHERE company_id=$1';if(req.query.request_id){a.push(req.query.request_id);sql+=' AND request_id=$'+a.length;}sql+=' ORDER BY created_at DESC';const q=await pool.query(sql,a);res.json({documents:q.rows});});
-app.post('/api/documents',auth,requireCsrf,upload.single('file'),async(req,res)=>{if(!req.file)return res.status(400).json({error:'Datei fehlt oder Dateityp nicht erlaubt'});let requestId=req.body.request_id||null;if(requestId){const rq=await pool.query('SELECT id,company_id FROM requests WHERE id=$1',[requestId]);if(!rq.rowCount)return res.status(400).json({error:'Anfrage nicht gefunden'});if(rq.rows[0].company_id!==req.user.companyId&&!req.userRow.is_admin)return res.status(403).json({error:'Dokumente können nur vom Anfrage-Eigentümer verknüpft werden'});}const hash=crypto.createHash('sha256').update(fs.readFileSync(req.file.path)).digest('hex');try{const q=await pool.query('INSERT INTO documents(company_id,request_id,original_name,stored_name,mime_type,size_bytes,sha256) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,original_name,mime_type,size_bytes,created_at,request_id',[req.user.companyId,requestId,req.file.originalname,req.file.filename,req.file.mimetype,req.file.size,hash]);await audit(req,'document_uploaded','document',q.rows[0].id);res.status(201).json({document:q.rows[0]});}catch(e){fs.rmSync(req.file.path,{force:true});throw e;}});
-app.patch('/api/documents/:id',auth,requireCsrf,async(req,res)=>{
+app.post('/api/documents',uploadLimiter,auth,verified,requireCsrf,upload.single('file'),async(req,res)=>{
+  if(!req.file)return res.status(400).json({error:'Datei fehlt oder Dateityp nicht erlaubt'});
+  if(!uploadSignatureMatches(req.file.path,req.file.mimetype)){fs.rmSync(req.file.path,{force:true});return res.status(400).json({error:'Dateiinhalt stimmt nicht mit dem angegebenen Dateityp überein'});}
+  req.file.originalname=safeOriginalName(req.file.originalname);
+  let requestId=req.body.request_id||null;
+  if(requestId){
+    const rq=await pool.query('SELECT id,company_id FROM requests WHERE id=$1',[requestId]);
+    if(!rq.rowCount){fs.rmSync(req.file.path,{force:true});return res.status(400).json({error:'Anfrage nicht gefunden'});}
+    if(rq.rows[0].company_id!==req.user.companyId&&!req.userRow.is_admin){fs.rmSync(req.file.path,{force:true});return res.status(403).json({error:'Dokumente können nur vom Anfrage-Eigentümer verknüpft werden'});}
+  }
+  const hash=crypto.createHash('sha256').update(fs.readFileSync(req.file.path)).digest('hex');
+  let persisted=false;
+  try{
+    await persistUpload(req.file.path,req.file.filename,req.file.mimetype); persisted=true;
+    const q=await pool.query('INSERT INTO documents(company_id,request_id,original_name,stored_name,mime_type,size_bytes,sha256) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,original_name,mime_type,size_bytes,created_at,request_id',[req.user.companyId,requestId,req.file.originalname,req.file.filename,req.file.mimetype,req.file.size,hash]);
+    await audit(req,'document_uploaded','document',q.rows[0].id,{storage:storageDriver()});
+    res.status(201).json({document:q.rows[0]});
+  }catch(error){
+    if(persisted)await removeStored(req.file.filename,uploadDir).catch(()=>{});
+    else fs.rmSync(req.file.path,{force:true});
+    throw error;
+  }
+});
+app.patch('/api/documents/:id',auth,verified,requireCsrf,async(req,res)=>{
   const q=await pool.query('SELECT * FROM documents WHERE id=$1 AND company_id=$2',[req.params.id,req.user.companyId]);
   if(!q.rowCount) return res.status(404).json({error:'Dokument nicht gefunden'});
   let requestId=req.body.request_id||null;
@@ -236,13 +340,28 @@ app.patch('/api/documents/:id',auth,requireCsrf,async(req,res)=>{
   await audit(req,'document_linked','document',req.params.id,{request_id:requestId});
   res.json({document:u.rows[0]});
 });
-app.get('/api/documents/:id/download',auth,async(req,res)=>{const q=await pool.query('SELECT * FROM documents WHERE id=$1 AND company_id=$2',[req.params.id,req.user.companyId]);if(!q.rowCount)return res.status(404).end();const f=path.resolve(uploadDir,path.basename(String(q.rows[0].stored_name||'')));if(!f.startsWith(path.resolve(uploadDir)+path.sep)&&f!==path.resolve(uploadDir))return res.status(404).end();if(!fs.existsSync(f))return res.status(404).end();res.download(f,q.rows[0].original_name);});
+app.get('/api/documents/:id/download',auth,async(req,res)=>{
+  const q=await pool.query(`SELECT d.* FROM documents d LEFT JOIN requests r ON r.id=d.request_id WHERE d.id=$1 AND (d.company_id=$2 OR r.company_id=$2 OR EXISTS(SELECT 1 FROM offers o WHERE o.request_id=d.request_id AND o.provider_company_id=$2) OR $3::boolean=true)`,[req.params.id,req.user.companyId,!!req.userRow.is_admin]);
+  if(!q.rowCount)return res.status(404).end();
+  res.setHeader('X-Content-Type-Options','nosniff');
+  res.attachment(q.rows[0].original_name);
+  const found=await streamStored(q.rows[0].stored_name,res,uploadDir);
+  if(!found&&!res.headersSent)return res.status(404).end();
+});
 
 app.get('/api/billing',auth,async(req,res)=>{const q=await pool.query('SELECT * FROM invoices WHERE company_id=$1 ORDER BY invoice_date DESC',[req.user.companyId]);const total=q.rows.reduce((s,x)=>s+x.amount_cents,0);res.json({stats:{total:(total/100).toFixed(2),open:q.rows.filter(x=>x.status==='open').length,paid:q.rows.filter(x=>x.status==='paid').length},invoices:q.rows});});
 app.get('/api/settings',auth,async(req,res)=>{const q=await pool.query('SELECT id,name,role,email,contact_name,phone,vat_id,address_line,postal_code,city,country,notification_offers,notification_messages,is_verified FROM companies WHERE id=$1',[req.user.companyId]);res.json({company:q.rows[0]});});
-app.patch('/api/settings',auth,requireCsrf,async(req,res)=>{const p=settingsSchema.safeParse(req.body);if(!p.success)return res.status(400).json({error:'Ungültige Einstellungen'});const d=p.data;const client=await pool.connect();try{await client.query('BEGIN');await client.query('UPDATE companies SET name=$1,contact_name=$2,phone=$3,email=lower($4),vat_id=$5,address_line=$6,postal_code=$7,city=$8,country=$9,notification_offers=$10,notification_messages=$11,updated_at=now() WHERE id=$12',[d.company,d.contact,d.phone,d.email,d.vat_id,d.address_line,d.postal_code,d.city,d.country,d.notification_offers,d.notification_messages,req.user.companyId]);const duplicate=await client.query('SELECT 1 FROM users WHERE lower(email)=lower($1) AND id<>$2',[d.email,req.user.sub]);if(duplicate.rowCount)throw Object.assign(new Error('E-Mail bereits verwendet'),{statusCode:409});await client.query('UPDATE users SET email=lower($1) WHERE id=$2',[d.email,req.user.sub]);await client.query('COMMIT');await audit(req,'settings_updated','company',req.user.companyId);res.json({ok:true});}catch(e){await client.query('ROLLBACK');res.status(e.statusCode||400).json({error:e.message||'Speichern fehlgeschlagen'});}finally{client.release();}});
+app.patch('/api/settings',auth,verified,requireCsrf,async(req,res)=>{
+  const p=settingsSchema.safeParse(req.body); if(!p.success)return res.status(400).json({error:'Ungültige Einstellungen'});
+  const d=p.data, current=await pool.query('SELECT email FROM users WHERE id=$1',[req.user.sub]);
+  if(!current.rowCount)return res.status(401).json({error:'Benutzer nicht gefunden'});
+  if(String(current.rows[0].email).toLowerCase()!==String(d.email).toLowerCase())return res.status(409).json({error:'Die Login-E-Mail kann hier noch nicht geändert werden. Dafür ist eine erneute E-Mail-Bestätigung erforderlich.'});
+  const q=await pool.query('UPDATE companies SET name=$1,contact_name=$2,phone=$3,vat_id=$4,address_line=$5,postal_code=$6,city=$7,country=$8,notification_offers=$9,notification_messages=$10,updated_at=now() WHERE id=$11 RETURNING id,name,role,email,contact_name,phone,vat_id,address_line,postal_code,city,country,notification_offers,notification_messages,is_verified',[d.company,d.contact,d.phone,d.vat_id,d.address_line,d.postal_code,d.city,d.country,d.notification_offers,d.notification_messages,req.user.companyId]);
+  await audit(req,'settings_updated','company',req.user.companyId);
+  res.json({ok:true,company:q.rows[0]});
+});
 
-app.post('/api/transports/:id/rating',auth,requireCsrf,async(req,res)=>{const p=ratingSchema.safeParse(req.body);if(!p.success)return res.status(400).json({error:'Ungültige Bewertung'});const t=await pool.query('SELECT t.*,r.company_id,o.provider_company_id FROM transports t JOIN requests r ON r.id=t.request_id LEFT JOIN offers o ON o.id=t.offer_id WHERE t.id=$1',[req.params.id]);if(!t.rowCount)return res.status(404).json({error:'Transport nicht gefunden'});const x=t.rows[0];const to=x.company_id===req.user.companyId?x.provider_company_id:x.company_id;if(![x.company_id,x.provider_company_id].includes(req.user.companyId)||!to)return res.status(403).json({error:'Nicht berechtigt'});try{const q=await pool.query('INSERT INTO ratings(transport_id,from_company_id,to_company_id,reliability,communication,punctuality,quality,comment) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',[req.params.id,req.user.companyId,to,p.data.reliability,p.data.communication,p.data.punctuality,p.data.quality,p.data.comment]);res.status(201).json({rating:q.rows[0]});}catch(e){if(e.code==='23505')return res.status(409).json({error:'Sie haben diesen Transport bereits bewertet'});throw e;}});
+app.post('/api/transports/:id/rating',auth,verified,requireCsrf,async(req,res)=>{const p=ratingSchema.safeParse(req.body);if(!p.success)return res.status(400).json({error:'Ungültige Bewertung'});const t=await pool.query('SELECT t.*,r.company_id,o.provider_company_id FROM transports t JOIN requests r ON r.id=t.request_id LEFT JOIN offers o ON o.id=t.offer_id WHERE t.id=$1',[req.params.id]);if(!t.rowCount)return res.status(404).json({error:'Transport nicht gefunden'});const x=t.rows[0];const to=x.company_id===req.user.companyId?x.provider_company_id:x.company_id;if(![x.company_id,x.provider_company_id].includes(req.user.companyId)||!to)return res.status(403).json({error:'Nicht berechtigt'});try{const q=await pool.query('INSERT INTO ratings(transport_id,from_company_id,to_company_id,reliability,communication,punctuality,quality,comment) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',[req.params.id,req.user.companyId,to,p.data.reliability,p.data.communication,p.data.punctuality,p.data.quality,p.data.comment]);res.status(201).json({rating:q.rows[0]});}catch(e){if(e.code==='23505')return res.status(409).json({error:'Sie haben diesen Transport bereits bewertet'});throw e;}});
 app.get('/api/companies/:id/ratings',auth,async(req,res)=>{const q=await pool.query('SELECT reliability,communication,punctuality,quality,comment,created_at FROM ratings WHERE to_company_id=$1 ORDER BY created_at DESC',[req.params.id]);res.json({ratings:q.rows});});
 app.get('/api/marketplace/filters',auth,async(_,res)=>{const q=await pool.query("SELECT DISTINCT wagon_type FROM requests WHERE wagon_type IS NOT NULL ORDER BY wagon_type");res.json({wagonTypes:q.rows.map(x=>x.wagon_type)});});
 
@@ -278,7 +397,7 @@ app.get('/admin', (req,res)=>res.sendFile(path.join(root,'public','admin.html'))
 
 app.use(express.static(path.join(root,'public')));
 app.use((req,res)=>{if(req.method==='GET'&&!req.path.startsWith('/api/'))return res.sendFile(path.join(root,'public','index.html'));res.status(404).json({error:'Not found'});});
-app.use((err,req,res,next)=>{console.error(err);if(err instanceof multer.MulterError)return res.status(400).json({error:err.message});res.status(500).json({error:'Interner Serverfehler'});});
+app.use((err,req,res,next)=>{console.error(err);if(err instanceof multer.MulterError)return res.status(400).json({error:err.message});if(err?.code==='22P02'||err?.code==='22007')return res.status(400).json({error:'Ungültige Kennung oder Datumsangabe'});res.status(500).json({error:'Interner Serverfehler'});});
 
 async function ensureBootstrapAdmin(){
   const email=String(process.env.ADMIN_EMAIL||'').trim().toLowerCase();
@@ -290,10 +409,8 @@ async function ensureBootstrapAdmin(){
     await client.query('BEGIN');
     let u=await client.query('SELECT id,company_id,is_admin FROM users WHERE lower(email)=lower($1)',[email]);
     if(u.rowCount){
-      const hash=await bcrypt.hash(password,12);
-      await client.query('UPDATE users SET password_hash=$1,is_admin=true,is_active=true,email_verified_at=COALESCE(email_verified_at,now()) WHERE id=$2',[hash,u.rows[0].id]);
       await client.query('COMMIT');
-      console.log('TRASSA Admin aktualisiert:',email);
+      console.log('TRASSA Bootstrap-Admin existiert bereits; Passwort und Rechte bleiben unverändert:',email);
       return;
     }
     let c=await client.query('SELECT id FROM companies WHERE lower(email)=lower($1) LIMIT 1',[email]);
