@@ -135,7 +135,7 @@ async function trassaBoot(){
 
 async function trassaLoadDashboard(){
   try{const d=await api('/dashboard');
-    const k=document.querySelectorAll('#panel-dashboard .kpi-card .num'); [d.kpi.open,d.kpi.transports,d.kpi.offers,d.kpi.messages].forEach((v,i)=>{if(k[i])k[i].textContent=v});
+    const k=document.querySelectorAll('#panel-dashboard .kpi-card .num'); [d.kpi.open,d.kpi.offers,d.kpi.transports,d.kpi.messages].forEach((v,i)=>{if(k[i])k[i].textContent=v});
     const t=translations[lang]; const labels=lang==='de'?{gewicht:'Gewicht',zeit:'Zeitraum',spur:'Spurweite'}:{gewicht:'Weight',zeit:'Timeframe',spur:'Gauge'};
     document.getElementById('dash-req-list').innerHTML=(d.requests||[]).slice(0,3).map(r=>`<div class="req-row dashboard-request-row" role="button" tabindex="0" data-request-id="${esc(r.id)}" onclick="window.openDashboardRequestDetail(this.dataset.requestId)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.openDashboardRequestDetail(this.dataset.requestId)}"><div><div class="r-route">${esc(r.route)}</div><div class="r-sub">#TR-${r.public_id}</div></div><div class="r-field"><span class="k">${labels.zeit}</span>${esc(formatPeriod(r.from_date,r.to_date,r.zeit))}</div><div class="r-field"><span class="k">${labels.gewicht}</span>${esc(r.gewicht||'—')}</div><div class="r-field"><span class="k">${labels.spur}</span>—</div><div class="req-badge ${r.gefahr?'gefahr':''}">${r.gefahr?'Gefahrgut':'Offen'}</div></div>`).join('');
     document.getElementById('dash-activity-list').innerHTML=(d.activity||[]).map(a=>`<div class="activity-item"><div class="ico">${esc(a.icon)}</div><div><div class="txt">${esc(a.text)}</div><div class="time">${new Date(a.created_at).toLocaleString(lang==='de'?'de-DE':'en-GB')}</div></div></div>`).join('');
@@ -1093,8 +1093,12 @@ async function createRequest(status){
   window.__trassaCurrentRequest=null;
   if(typeof collectNewRequestData!=='function'){apiToast('Formular-Hilfe fehlt – Seite neu laden.');return}
   const data=collectNewRequestData();
-  if((status==='new'&&(!data.start||!data.ziel||!data.titel))||(!data.start&&!data.ziel&&!data.titel)){
-    apiToast('Bitte Pflichtfelder ausfüllen.');
+  if((status==='new'&&(!data.start||!data.ziel||!data.von||!data.bis||!data.titel))||(!data.start&&!data.ziel&&!data.titel)){
+    apiToast(status==='new'?'Bitte Start, Ziel, Zeitraum und Titel ausfüllen.':'Bitte Pflichtfelder ausfüllen.');
+    return;
+  }
+  if(data.von && data.bis && data.bis < data.von){
+    apiToast('Das Enddatum darf nicht vor dem Startdatum liegen.');
     return;
   }
   try{
