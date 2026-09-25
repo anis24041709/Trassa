@@ -844,15 +844,7 @@ function openTransportDetail(id){
       const active=tr.status===val;
       return `<button type="button" class="btn ${active?'btn-primary':'btn-ghost'}" ${active?'disabled':''} onclick="updateTransportStatus('${esc(tr.id)}','${val}')">${label}</button>`;
     }).join('');
-  }
-  const ratingBlock=document.getElementById('transport-rating-block');
-  if(ratingBlock){
-    const canRate=tr.status==='done' && !tr.rated;
-    ratingBlock.style.display=canRate?'block':'none';
-    const hid=document.getElementById('rating-transport-id');
-    if(hid) hid.value=tr.id;
-  }
-}
+  }}
 window.openTransportDetail=openTransportDetail;
 
 async function updateTransportStatus(id,status){
@@ -866,26 +858,6 @@ async function updateTransportStatus(id,status){
 }
 window.updateTransportStatus=updateTransportStatus;
 
-async function submitTransportRating(event){
-  event.preventDefault();
-  const id=document.getElementById('rating-transport-id')?.value;
-  if(!id)return false;
-  const body={
-    reliability:Number(document.getElementById('rating-reliability')?.value||5),
-    communication:Number(document.getElementById('rating-communication')?.value||5),
-    punctuality:Number(document.getElementById('rating-punctuality')?.value||5),
-    quality:Number(document.getElementById('rating-quality')?.value||5),
-    comment:document.getElementById('rating-comment')?.value.trim()||''
-  };
-  try{
-    await api('/transports/'+encodeURIComponent(id)+'/rating',{method:'POST',body:JSON.stringify(body)});
-    apiToast('Bewertung wurde gespeichert.');
-    await renderTransports();
-    openTransportDetail(id);
-  }catch(e){apiToast(e.message)}
-  return false;
-}
-window.submitTransportRating=submitTransportRating;
 
 async function submitForgotPassword(event){
   event.preventDefault();
