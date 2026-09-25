@@ -258,7 +258,14 @@ app.patch('/api/documents/:id',auth,requireCsrf,async(req,res)=>{
   await audit(req,'document_linked','document',req.params.id,{request_id:requestId});
   res.json({document:u.rows[0]});
 });
-app.get('/api/documents/:id/download',auth,async(req,res)=>{const q=await pool.query('SELECT * FROM documents WHERE id=$1 AND company_id=$2',[req.params.id,req.user.companyId]);if(!q.rowCount)return res.status(404).end();const f=path.resolve(uploadDir,path.basename(String(q.rows[0].stored_name||'')));if(!f.startsWith(path.resolve(uploadDir)+path.sep)&&f!==path.resolve(uploadDir))return res.status(404).end();if(!fs.existsSync(f))return res.status(404).end();res.download(f,q.rows[0].original_name);});
+app.get('/api/documents/:id/download',auth,async(req,res)=>{
+  const q=await pool.query(`SELECT d.* FROM documents d WHERE d.id=$1 AND (d.company_id=$2 OR (d.request_id IS NOT NULL AND EXISTS (SELECT 1 FROM offers o WHERE o.request_id=d.request_id AND o.provider_company_id=$2 AND o.status='accepted')))`,[req.params.id,req.user.companyId]);
+  if(!q.rowCount)return res.status(404).end();
+  const f=path.resolve(uploadDir,path.basename(String(q.rows[0].stored_name||'')));
+  if(!f.startsWith(path.resolve(uploadDir)+path.sep)&&f!==path.resolve(uploadDir))return res.status(404).end();
+  if(!fs.existsSync(f))return res.status(404).end();
+  res.download(f,q.rows[0].original_name);
+});
 
 app.get('/api/billing',auth,async(req,res)=>{const q=await pool.query('SELECT * FROM invoices WHERE company_id=$1 ORDER BY invoice_date DESC',[req.user.companyId]);const total=q.rows.reduce((s,x)=>s+x.amount_cents,0);res.json({stats:{total:(total/100).toFixed(2),open:q.rows.filter(x=>x.status==='open').length,paid:q.rows.filter(x=>x.status==='paid').length},invoices:q.rows});});
 app.get('/api/settings',auth,async(req,res)=>{const q=await pool.query('SELECT id,name,role,email,contact_name,phone,vat_id,address_line,postal_code,city,country,notification_offers,notification_messages,is_verified FROM companies WHERE id=$1',[req.user.companyId]);res.json({company:q.rows[0]});});
@@ -348,7 +355,14 @@ app.patch('/api/documents/:id',auth,requireCsrf,async(req,res)=>{
   await audit(req,'document_linked','document',req.params.id,{request_id:requestId});
   res.json({document:u.rows[0]});
 });
-app.get('/api/documents/:id/download',auth,async(req,res)=>{const q=await pool.query('SELECT * FROM documents WHERE id=$1 AND company_id=$2',[req.params.id,req.user.companyId]);if(!q.rowCount)return res.status(404).end();const f=path.resolve(uploadDir,path.basename(String(q.rows[0].stored_name||'')));if(!f.startsWith(path.resolve(uploadDir)+path.sep)&&f!==path.resolve(uploadDir))return res.status(404).end();if(!fs.existsSync(f))return res.status(404).end();res.download(f,q.rows[0].original_name);});
+app.get('/api/documents/:id/download',auth,async(req,res)=>{
+  const q=await pool.query(`SELECT d.* FROM documents d WHERE d.id=$1 AND (d.company_id=$2 OR (d.request_id IS NOT NULL AND EXISTS (SELECT 1 FROM offers o WHERE o.request_id=d.request_id AND o.provider_company_id=$2 AND o.status='accepted')))`,[req.params.id,req.user.companyId]);
+  if(!q.rowCount)return res.status(404).end();
+  const f=path.resolve(uploadDir,path.basename(String(q.rows[0].stored_name||'')));
+  if(!f.startsWith(path.resolve(uploadDir)+path.sep)&&f!==path.resolve(uploadDir))return res.status(404).end();
+  if(!fs.existsSync(f))return res.status(404).end();
+  res.download(f,q.rows[0].original_name);
+});
 
 app.get('/api/billing',auth,async(req,res)=>{const q=await pool.query('SELECT * FROM invoices WHERE company_id=$1 ORDER BY invoice_date DESC',[req.user.companyId]);const total=q.rows.reduce((s,x)=>s+x.amount_cents,0);res.json({stats:{total:(total/100).toFixed(2),open:q.rows.filter(x=>x.status==='open').length,paid:q.rows.filter(x=>x.status==='paid').length},invoices:q.rows});});
 app.get('/api/settings',auth,async(req,res)=>{const q=await pool.query('SELECT id,name,role,email,contact_name,phone,vat_id,address_line,postal_code,city,country,notification_offers,notification_messages,is_verified FROM companies WHERE id=$1',[req.user.companyId]);res.json({company:q.rows[0]});});
