@@ -290,8 +290,6 @@ function renderRealRequestDetail(r, docs){
       }
     })();
   }
-  myCompanyId=trassaUser?.company?.id;
-  isOwner=r && (r.company_id===myCompanyId);
   if(uploadWrap) uploadWrap.style.display=isOwner?'block':'none';
   const upBtn=document.getElementById('req-docs-upload-btn');
   if(upBtn) upBtn.style.display=isOwner?'inline-flex':'none';
