@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#1a9b6c" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="description" content="TRASSA – Marktplatz für Sondertransporte auf der Schiene" />
+  <title>TRASSA App</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- Auth -->
+    <div id="auth" class="auth hidden">
+      <div class="auth-logo">
+        <div class="mark">TR</div>
+        <h1>TRASSA</h1>
+        <p>Sondertransporte auf der Schiene</p>
+      </div>
+      <div class="tabs">
+        <button type="button" id="tab-login" class="active">Login</button>
+        <button type="button" id="tab-register">Registrieren</button>
+      </div>
+      <form id="form-login" class="card">
+        <div class="field"><label>E-Mail</label><input name="email" type="email" required autocomplete="username" placeholder="name@unternehmen.de" /></div>
+        <div class="field"><label>Passwort</label><input name="password" type="password" required autocomplete="current-password" /></div>
+        <button class="btn btn-primary btn-block" type="submit">Einloggen</button>
+      </form>
+      <form id="form-register" class="card hidden">
+        <div class="field"><label>Vorname</label><input name="first_name" required autocomplete="given-name" /></div>
+        <div class="field"><label>Nachname</label><input name="last_name" required autocomplete="family-name" /></div>
+        <div class="field"><label>Unternehmen</label><input name="company" required autocomplete="organization" /></div>
+        <div class="field">
+          <label>Rolle</label>
+          <select name="role">
+            <option value="Logistiker">Logistiker</option>
+            <option value="EVU">EVU</option>
+            <option value="Wagenhalter">Wagenhalter</option>
+            <option value="Kranunternehmen">Kranunternehmen</option>
+            <option value="Sonstige">Sonstige</option>
+          </select>
+        </div>
+        <div class="field"><label>E-Mail</label><input name="email" type="email" required autocomplete="email" /></div>
+        <div class="field"><label>Passwort</label><input name="password" type="password" required minlength="10" autocomplete="new-password" /></div>
+        <div class="field"><label>Passwort wiederholen</label><input name="password2" type="password" required minlength="10" autocomplete="new-password" /></div>
+        <button class="btn btn-primary btn-block" type="submit">Registrieren</button>
+      </form>
+      <div id="auth-msg" class="msg"></div>
+    </div>
+
+    <!-- App shell -->
+    <div id="shell" class="shell hidden">
+      <header class="topbar">
+        <button type="button" id="btn-back" class="btn btn-ghost hidden" style="padding:8px 10px">←</button>
+        <h1 id="top-title">Dashboard</h1>
+        <div>
+          <div class="sub" id="top-user"></div>
+        </div>
+        <div class="avatar" id="top-avatar">TR</div>
+      </header>
+      <main class="content" id="content"></main>
+      <nav class="bottom-nav">
+        <button type="button" data-nav="dashboard" class="active"><span class="ico">⌂</span>Home</button>
+        <button type="button" data-nav="market"><span class="ico">⌕</span>Markt</button>
+        <button type="button" data-nav="requests"><span class="ico">▤</span>Anfragen</button>
+        <button type="button" data-nav="offers"><span class="ico">◇</span>Angebote</button>
+        <button type="button" data-nav="messages"><span class="ico">✉</span>Chat</button>
+      </nav>
+    </div>
+  </div>
+  <div id="toast" class="toast"></div>
+  <script src="./app.js"></script>
+</body>
+</html>
