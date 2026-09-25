@@ -559,12 +559,6 @@
   .bubble.out{background:var(--green-dim);color:#DFF3E8;margin-left:auto;}
   .bubble .meta{display:block;font-family:var(--mono);font-size:10px;color:var(--text-faint);margin-top:5px;}
 
-  /* rating */
-  .rating-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
-  @media (max-width:760px){ .rating-grid{grid-template-columns:repeat(2,1fr);} }
-  .rating-item{background:var(--surface);border:1px solid var(--line);padding:18px;border-radius:2px;text-align:center;}
-  .stars{color:var(--amber);font-size:16px;letter-spacing:2px;margin:8px 0;}
-  .rating-item .lbl{font-size:12.5px;color:var(--text-dim);}
 
   footer{padding:48px 0;text-align:center;}
   footer .foot-cta h2{font-size:clamp(24px,4vw,36px);margin-bottom:16px;}
@@ -847,7 +841,6 @@ body.app-mode .kpi-card .num{
   margin:4px 0 2px!important;
   font-variant-numeric:tabular-nums!important;
 }
-body.app-mode .kpi-card .num.rating-num, body.app-mode .kpi-card .num span{font-size:14px!important;color:var(--text-dim)!important}
 body.app-mode .kpi-card button{
   display:none!important;
 }
@@ -1764,7 +1757,7 @@ body.app-mode .doc-row .d-meta{font-size:11px;color:#6b7280;font-family:var(--mo
   <div class="wrap">
     <div class="section-head">
       <div class="eyebrow" data-i18n="eyebrow_process">Ablauf</div>
-      <h2 data-i18n="process_h2">Von der Anfrage bis zur Bewertung</h2>
+      <h2 data-i18n="process_h2">Von der Anfrage bis zum Auftrag</h2>
     </div>
     <div class="process-line">
       <div class="process-track"></div>
@@ -1833,16 +1826,6 @@ body.app-mode .doc-row .d-meta{font-size:11px;color:#6b7280;font-family:var(--mo
   </div>
 </section>
 
-<section id="bewertung" style="border-bottom:none;">
-  <div class="wrap">
-    <div class="section-head">
-      <div class="eyebrow" data-i18n="eyebrow_rating">Bewertungssystem</div>
-      <h2 data-i18n="rating_h2">Vertrauen entsteht auf der Plattform</h2>
-      <p data-i18n="rating_p">Nach jedem Auftrag bewerten sich Auftraggeber und Anbieter gegenseitig.</p>
-    </div>
-    <div class="rating-grid" id="rating-grid"></div>
-  </div>
-</section>
 
 <footer>
   <div class="wrap foot-cta">
@@ -1965,7 +1948,6 @@ body.app-mode .doc-row .d-meta{font-size:11px;color:#6b7280;font-family:var(--mo
         <div class="kpi-card" data-kpi="offers"><div class="kpi-icon">◇</div><div class="kpi-title">Neue Angebote</div><div class="num">4</div><div class="lbl" data-i18n="dash_stat3">Neue Angebote heute</div><button onclick="switchAppPanel('angebote')">Anzeigen →</button></div>
         <div class="kpi-card" data-kpi="transports"><div class="kpi-icon">▣</div><div class="kpi-title">Aktive Transporte</div><div class="num">6</div><div class="lbl" data-i18n="dash_stat2">Laufende Transporte</div><button onclick="switchAppPanel('transporte')">Anzeigen →</button></div>
         <div class="kpi-card" data-kpi="messages"><div class="kpi-icon">✉</div><div class="kpi-title">Nachrichten</div><div class="num">3</div><div class="lbl" data-i18n="dash_stat4">Ungelesene Nachrichten</div><button onclick="switchAppPanel('nachrichten')">Anzeigen →</button></div>
-        <div class="kpi-card" data-kpi="rating"><div class="kpi-icon">★</div><div class="kpi-title">Bewertung</div><div class="num rating-num">4.8 <span>/ 5</span></div><div class="lbl">Basierend auf Ihren Bewertungen</div><button onclick="switchAppPanel('einstellungen')">Profil →</button></div>
       </div>
 
       <div class="dash-cols dashboard-primary">
@@ -2269,39 +2251,6 @@ body.app-mode .doc-row .d-meta{font-size:11px;color:#6b7280;font-family:var(--mo
           <div class="step-h">Status ändern</div>
           <div class="offer-action-buttons" id="transport-status-actions"></div>
         </div>
-        <div class="step-block" id="transport-rating-block" style="display:none;">
-          <div class="step-h">Partner bewerten</div>
-          <form id="transport-rating-form" onsubmit="return submitTransportRating(event)">
-            <input type="hidden" id="rating-transport-id" value="">
-            <div class="form-grid-4">
-              <div class="field"><label>Zuverlässigkeit</label>
-                <select id="rating-reliability" required>
-                  <option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option>
-                </select>
-              </div>
-              <div class="field"><label>Kommunikation</label>
-                <select id="rating-communication" required>
-                  <option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option>
-                </select>
-              </div>
-              <div class="field"><label>Pünktlichkeit</label>
-                <select id="rating-punctuality" required>
-                  <option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option>
-                </select>
-              </div>
-              <div class="field"><label>Qualität</label>
-                <select id="rating-quality" required>
-                  <option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option>
-                </select>
-              </div>
-            </div>
-            <div class="field" style="margin-top:8px;">
-              <label>Kommentar (optional)</label>
-              <textarea id="rating-comment" maxlength="2000" placeholder="Kurzer Kommentar zur Zusammenarbeit…"></textarea>
-            </div>
-            <button type="submit" class="btn btn-primary" style="margin-top:10px;">Bewertung absenden</button>
-          </form>
-        </div>
       </div>
     </div>
 
@@ -2442,7 +2391,7 @@ const translations = {
     cases_p:"Ein EVU stellt seinen Bedarf ein — andere Unternehmen geben direkt ein Angebot ab.",
     eyebrow_cat:"Kategorien", cat_h2:"Fahrzeuge, Güter, Dienstleistungen",
     cat_tab1:"Fahrzeuge", cat_tab2:"Güter", cat_tab3:"Dienstleistungen",
-    eyebrow_process:"Ablauf", process_h2:"Von der Anfrage bis zur Bewertung",
+    eyebrow_process:"Ablauf", process_h2:"Von der Anfrage bis zum Auftrag",
     eyebrow_market:"Marktplatz", market_h2:"Offene Anfragen durchsuchen",
     market_p:"Filtern nach Strecke, Land, Wagenart, Zeitraum, Gewicht, Spurweite und Gefahrgut.",
     filter_search_ph:"Strecke suchen …",
@@ -2454,8 +2403,6 @@ const translations = {
     chat_1:'Guten Tag, wir hätten zwei Zweiwegebagger für den 15.–18.08. verfügbar. Lichtraumprofil passt.<span class="meta mono">Kranunternehmen Voss · 09:14</span>',
     chat_2:'Danke! Können Sie den Wagenplan als PDF senden?<span class="meta mono">Sie · 09:16</span>',
     chat_3:'Anbei Wagenliste und Ladeplan. Angebot aktualisiert.<span class="meta mono">Kranunternehmen Voss · 09:22</span>',
-    eyebrow_rating:"Bewertungssystem", rating_h2:"Vertrauen entsteht auf der Plattform",
-    rating_p:"Nach jedem Auftrag bewerten sich Auftraggeber und Anbieter gegenseitig.",
     foot_h2:"Bereit für den ersten Sondertransport?",
     foot_p:"",
     foot_cta:"Zum Marktplatz",
@@ -2479,7 +2426,6 @@ const translations = {
       ["Angebote erhalten","Interessierte Unternehmen geben Angebote ab"],
       ["Chat","Direkte Kommunikation zwischen den Unternehmen"],
       ["Auftrag vergeben","Verbindliche Zusage an ein Unternehmen"],
-      ["Bewertung","Beide Seiten bewerten nach Abschluss"]
     ],
     reqs:[
       {route:"Köln → Hannover", sub:"#TR-4471 · EVU Rheinbahn Cargo", land:"DE", wagenart:"Zweiwegebagger", zeit:"15.08.–18.08.", gewicht:"84 t", spur:"1435 mm", gefahr:false, badge:"3 Angebote"},
@@ -2491,7 +2437,6 @@ const translations = {
     ],
     land_all:"Alle Länder", wagenart_all:"Alle Wagenarten", gefahr_all:"Gefahrgut: egal", gefahr_ja:"Nur Gefahrgut", gefahr_nein:"Ohne Gefahrgut",
     no_results:"Keine Anfragen für diese Filterkombination.",
-    ratings:["Zuverlässigkeit","Kommunikation","Pünktlichkeit","Qualität"],
     sb_dashboard:"Dashboard", sb_market:"Marktplatz", sb_requests:"Anfragen", sb_offers:"Angebote",
     sb_transports:"Transporte", sb_messages:"Nachrichten", sb_documents:"Dokumente",
     sb_billing:"Abrechnung", sb_settings:"Einstellungen",
@@ -2505,7 +2450,6 @@ const translations = {
     activity:[
       {ico:"◇", text:"Neues Angebot erhalten von Kranunternehmen Voss", time:"vor 12 Min."},
       {ico:"✉", text:"Neue Nachricht von TransAlp Logistik", time:"vor 1 Std."},
-      {ico:"⭐", text:"Neue Bewertung erhalten (5/5) von Nordkran GmbH", time:"gestern"},
       {ico:"▣", text:"Transport Köln → Hannover gestartet", time:"gestern"},
       {ico:"▤", text:"Anfrage #TR-4476 wurde veröffentlicht", time:"vor 2 Tagen"}
     ],
@@ -2673,7 +2617,7 @@ const translations = {
     cases_p:"A rail operator posts what it needs — other companies submit offers directly.",
     eyebrow_cat:"Categories", cat_h2:"Vehicles, goods, services",
     cat_tab1:"Vehicles", cat_tab2:"Goods", cat_tab3:"Services",
-    eyebrow_process:"Process", process_h2:"From request to rating",
+    eyebrow_process:"Process", process_h2:"From request to order",
     eyebrow_market:"Marketplace", market_h2:"Browse open requests",
     market_p:"Filter by route, country, wagon type, timeframe, weight, gauge and hazardous goods.",
     filter_search_ph:"Search route …",
@@ -2685,8 +2629,6 @@ const translations = {
     chat_1:'Hello, we have two rail-road excavators available for 15–18 Aug. Loading gauge fits.<span class="meta mono">Voss Crane Co. · 09:14</span>',
     chat_2:'Thanks! Could you send the wagon plan as a PDF?<span class="meta mono">You · 09:16</span>',
     chat_3:'Attached: wagon list and loading plan. Offer updated.<span class="meta mono">Voss Crane Co. · 09:22</span>',
-    eyebrow_rating:"Rating system", rating_h2:"Trust builds on the platform",
-    rating_p:"After every order, both sides rate each other.",
     foot_h2:"Ready for the first special transport?",
     foot_p:"",
     foot_cta:"Go to marketplace",
@@ -2710,7 +2652,6 @@ const translations = {
       ["Receive offers","Interested companies submit offers"],
       ["Chat","Direct communication between the companies"],
       ["Award order","Binding confirmation to one company"],
-      ["Rating","Both sides rate each other after completion"]
     ],
     reqs:[
       {route:"Cologne → Hanover", sub:"#TR-4471 · Rheinbahn Cargo", land:"DE", wagenart:"Rail-road excavator", zeit:"15–18 Aug", gewicht:"84 t", spur:"1435 mm", gefahr:false, badge:"3 offers"},
@@ -2722,7 +2663,6 @@ const translations = {
     ],
     land_all:"All countries", wagenart_all:"All wagon types", gefahr_all:"Hazardous: any", gefahr_ja:"Hazardous only", gefahr_nein:"Non-hazardous only",
     no_results:"No requests match this filter combination.",
-    ratings:["Reliability","Communication","Punctuality","Quality"],
     sb_dashboard:"Dashboard", sb_market:"Marketplace", sb_requests:"Requests", sb_offers:"Offers",
     sb_transports:"Transports", sb_messages:"Messages", sb_documents:"Documents",
     sb_billing:"Billing", sb_settings:"Settings",
@@ -2736,7 +2676,6 @@ const translations = {
     activity:[
       {ico:"◇", text:"New offer received from Voss Crane Co.", time:"12 min ago"},
       {ico:"✉", text:"New message from TransAlp Logistik", time:"1 hr ago"},
-      {ico:"⭐", text:"New rating received (5/5) from Nordkran GmbH", time:"yesterday"},
       {ico:"▣", text:"Transport Cologne → Hanover started", time:"yesterday"},
       {ico:"▤", text:"Request #TR-4476 was published", time:"2 days ago"}
     ],
@@ -3002,12 +2941,6 @@ function renderMarketRequests(){
   renderRequestsFor('m-f-land', 'm-f-wagenart', 'm-f-gefahrgut', 'm-f-search', 'm-req-list');
 }
 
-function renderRatings(){
-  const t = translations[lang];
-  document.getElementById('rating-grid').innerHTML = t.ratings.map(r=>`
-    <div class="rating-item"><div class="lbl">${r}</div><div class="stars">★★★★★</div></div>
-  `).join('');
-}
 
 function renderAuthRoles(){
   const t = translations[lang];
@@ -3026,7 +2959,6 @@ function renderAll(){
   renderProcess();
   populateFilters();
   renderRequests();
-  renderRatings();
   renderAuthRoles();
   if(document.body.classList.contains('app-mode')){
     const fn = panelRenderers[currentPanel];
@@ -3576,7 +3508,7 @@ uploadBoxEl.addEventListener('drop', (e)=>{
 
 renderAll();
 </script>
-<script src="/api-adapter.js?v=422"></script>
+<script src="/api-adapter.js?v=423"></script>
 <script>
 (function(){
   // Adapter muss trassaSubmitAuth setzen
