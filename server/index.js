@@ -227,7 +227,113 @@ app.post('/api/conversations/:id/messages',auth,requireCsrf,async(req,res)=>{con
 
 const storage=multer.diskStorage({destination:(_,__,cb)=>cb(null,uploadDir),filename:(_,file,cb)=>cb(null,`${crypto.randomUUID()}${path.extname(file.originalname).toLowerCase()}`)});
 const upload=multer({storage,limits:{fileSize:MAX_UPLOAD_MB*1024*1024},fileFilter:(_,file,cb)=>{const allowed=['application/pdf','image/jpeg','image/png','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/msword','application/vnd.ms-excel','text/plain'];cb(null,allowed.includes(file.mimetype));}});
-app.get('/api/documents',auth,async(req,res)=>{const a=[req.user.companyId];let sql='SELECT id,original_name,mime_type,size_bytes,sha256,created_at,request_id FROM documents WHERE company_id=$1';if(req.query.request_id){a.push(req.query.request_id);sql+=' AND request_id=$'+a.length;}sql+=' ORDER BY created_at DESC';const q=await pool.query(sql,a);res.json({documents:q.rows});});
+app.get('/api/documents',auth,async(req,res)=>{
+  const a=[req.user.companyId];
+  let sql=`SELECT d.id,d.original_name,d.mime_type,d.size_bytes,d.sha256,d.created_at,d.request_id,d.company_id
+    FROM documents d
+    WHERE (
+      d.company_id=$1
+      OR (
+        d.request_id IS NOT NULL
+        AND EXISTS (
+          SELECT 1 FROM offers o
+          WHERE o.request_id=d.request_id
+            AND o.provider_company_id=$1
+            AND o.status='accepted'
+        )
+      )
+    )`;
+  if(req.query.request_id){a.push(req.query.request_id);sql+=' AND d.request_id=
+app.post('/api/documents',auth,requireCsrf,upload.single('file'),async(req,res)=>{if(!req.file)return res.status(400).json({error:'Datei fehlt oder Dateityp nicht erlaubt'});let requestId=req.body.request_id||null;if(requestId){const rq=await pool.query('SELECT id,company_id FROM requests WHERE id=$1',[requestId]);if(!rq.rowCount)return res.status(400).json({error:'Anfrage nicht gefunden'});if(rq.rows[0].company_id!==req.user.companyId&&!req.userRow.is_admin)return res.status(403).json({error:'Dokumente können nur vom Anfrage-Eigentümer verknüpft werden'});}const hash=crypto.createHash('sha256').update(fs.readFileSync(req.file.path)).digest('hex');try{const q=await pool.query('INSERT INTO documents(company_id,request_id,original_name,stored_name,mime_type,size_bytes,sha256) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,original_name,mime_type,size_bytes,created_at,request_id',[req.user.companyId,requestId,req.file.originalname,req.file.filename,req.file.mimetype,req.file.size,hash]);await audit(req,'document_uploaded','document',q.rows[0].id);res.status(201).json({document:q.rows[0]});}catch(e){fs.rmSync(req.file.path,{force:true});throw e;}});
+app.patch('/api/documents/:id',auth,requireCsrf,async(req,res)=>{
+  const q=await pool.query('SELECT * FROM documents WHERE id=$1 AND company_id=$2',[req.params.id,req.user.companyId]);
+  if(!q.rowCount) return res.status(404).json({error:'Dokument nicht gefunden'});
+  let requestId=req.body.request_id||null;
+  if(requestId){
+    const rq=await pool.query('SELECT id,company_id FROM requests WHERE id=$1',[requestId]);
+    if(!rq.rowCount) return res.status(400).json({error:'Anfrage nicht gefunden'});
+    if(rq.rows[0].company_id!==req.user.companyId && !req.userRow.is_admin) return res.status(403).json({error:'Nicht berechtigt'});
+  }
+  const u=await pool.query('UPDATE documents SET request_id=$1 WHERE id=$2 RETURNING id,original_name,request_id,mime_type,size_bytes,created_at',[requestId,req.params.id]);
+  await audit(req,'document_linked','document',req.params.id,{request_id:requestId});
+  res.json({document:u.rows[0]});
+});
+app.get('/api/documents/:id/download',auth,async(req,res)=>{const q=await pool.query('SELECT * FROM documents WHERE id=$1 AND company_id=$2',[req.params.id,req.user.companyId]);if(!q.rowCount)return res.status(404).end();const f=path.resolve(uploadDir,path.basename(String(q.rows[0].stored_name||'')));if(!f.startsWith(path.resolve(uploadDir)+path.sep)&&f!==path.resolve(uploadDir))return res.status(404).end();if(!fs.existsSync(f))return res.status(404).end();res.download(f,q.rows[0].original_name);});
+
+app.get('/api/billing',auth,async(req,res)=>{const q=await pool.query('SELECT * FROM invoices WHERE company_id=$1 ORDER BY invoice_date DESC',[req.user.companyId]);const total=q.rows.reduce((s,x)=>s+x.amount_cents,0);res.json({stats:{total:(total/100).toFixed(2),open:q.rows.filter(x=>x.status==='open').length,paid:q.rows.filter(x=>x.status==='paid').length},invoices:q.rows});});
+app.get('/api/settings',auth,async(req,res)=>{const q=await pool.query('SELECT id,name,role,email,contact_name,phone,vat_id,address_line,postal_code,city,country,notification_offers,notification_messages,is_verified FROM companies WHERE id=$1',[req.user.companyId]);res.json({company:q.rows[0]});});
+app.patch('/api/settings',auth,requireCsrf,async(req,res)=>{const p=settingsSchema.safeParse(req.body);if(!p.success)return res.status(400).json({error:'Ungültige Einstellungen'});const d=p.data;const client=await pool.connect();try{await client.query('BEGIN');await client.query('UPDATE companies SET name=$1,contact_name=$2,phone=$3,email=lower($4),vat_id=$5,address_line=$6,postal_code=$7,city=$8,country=$9,notification_offers=$10,notification_messages=$11,updated_at=now() WHERE id=$12',[d.company,d.contact,d.phone,d.email,d.vat_id,d.address_line,d.postal_code,d.city,d.country,d.notification_offers,d.notification_messages,req.user.companyId]);const duplicate=await client.query('SELECT 1 FROM users WHERE lower(email)=lower($1) AND id<>$2',[d.email,req.user.sub]);if(duplicate.rowCount)throw Object.assign(new Error('E-Mail bereits verwendet'),{statusCode:409});await client.query('UPDATE users SET email=lower($1) WHERE id=$2',[d.email,req.user.sub]);await client.query('COMMIT');await audit(req,'settings_updated','company',req.user.companyId);res.json({ok:true});}catch(e){await client.query('ROLLBACK');res.status(e.statusCode||400).json({error:e.message||'Speichern fehlgeschlagen'});}finally{client.release();}});
+
+app.post('/api/transports/:id/rating',auth,requireCsrf,async(req,res)=>{const p=ratingSchema.safeParse(req.body);if(!p.success)return res.status(400).json({error:'Ungültige Bewertung'});const t=await pool.query('SELECT t.*,r.company_id,o.provider_company_id FROM transports t JOIN requests r ON r.id=t.request_id LEFT JOIN offers o ON o.id=t.offer_id WHERE t.id=$1',[req.params.id]);if(!t.rowCount)return res.status(404).json({error:'Transport nicht gefunden'});const x=t.rows[0];const to=x.company_id===req.user.companyId?x.provider_company_id:x.company_id;if(![x.company_id,x.provider_company_id].includes(req.user.companyId)||!to)return res.status(403).json({error:'Nicht berechtigt'});try{const q=await pool.query('INSERT INTO ratings(transport_id,from_company_id,to_company_id,reliability,communication,punctuality,quality,comment) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',[req.params.id,req.user.companyId,to,p.data.reliability,p.data.communication,p.data.punctuality,p.data.quality,p.data.comment]);res.status(201).json({rating:q.rows[0]});}catch(e){if(e.code==='23505')return res.status(409).json({error:'Sie haben diesen Transport bereits bewertet'});throw e;}});
+app.get('/api/companies/:id/ratings',auth,async(req,res)=>{const q=await pool.query('SELECT reliability,communication,punctuality,quality,comment,created_at FROM ratings WHERE to_company_id=$1 ORDER BY created_at DESC',[req.params.id]);res.json({ratings:q.rows});});
+app.get('/api/marketplace/filters',auth,async(_,res)=>{const q=await pool.query("SELECT DISTINCT wagon_type FROM requests WHERE wagon_type IS NOT NULL ORDER BY wagon_type");res.json({wagonTypes:q.rows.map(x=>x.wagon_type)});});
+
+// Admin API
+app.get('/api/admin/stats',auth,admin,async(_,res)=>{
+  const [u,c,r,o,t,inv,openRequests,activeUsers]=await Promise.all([
+    pool.query('SELECT count(*)::int n FROM users'),
+    pool.query('SELECT count(*)::int n FROM companies'),
+    pool.query('SELECT count(*)::int n FROM requests'),
+    pool.query('SELECT count(*)::int n FROM offers'),
+    pool.query('SELECT count(*)::int n FROM transports'),
+    pool.query('SELECT count(*)::int n FROM invoices'),
+    pool.query("SELECT count(*)::int n FROM requests WHERE status IN ('new','progress')"),
+    pool.query('SELECT count(*)::int n FROM users WHERE is_active=true')
+  ]);
+  res.json({users:u.rows[0].n,activeUsers:activeUsers.rows[0].n,companies:c.rows[0].n,requests:r.rows[0].n,openRequests:openRequests.rows[0].n,offers:o.rows[0].n,transports:t.rows[0].n,invoices:inv.rows[0].n});
+});
+app.get('/api/admin/companies',auth,admin,async(req,res)=>{const q=await pool.query('SELECT c.*,count(u.id)::int users FROM companies c LEFT JOIN users u ON u.company_id=c.id GROUP BY c.id ORDER BY c.created_at DESC LIMIT 1000');res.json({companies:q.rows});});
+app.patch('/api/admin/companies/:id',auth,admin,requireCsrf,async(req,res)=>{const p=z.object({is_verified:z.boolean().optional(),name:z.string().trim().min(2).max(200).optional(),role:z.enum(['EVU','Wagenhalter','Kranunternehmen','Logistiker','Sonstige']).optional()}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Ungültige Daten'});const d=p.data;const q=await pool.query('UPDATE companies SET name=COALESCE($1,name),role=COALESCE($2,role),is_verified=COALESCE($3,is_verified),updated_at=now() WHERE id=$4 RETURNING *',[d.name||null,d.role||null,d.is_verified??null,req.params.id]);if(!q.rowCount)return res.status(404).json({error:'Unternehmen nicht gefunden'});await audit(req,'admin_company_updated','company',req.params.id,d);res.json({company:q.rows[0]});});
+app.get('/api/admin/users',auth,admin,async(req,res)=>{const q=await pool.query(`SELECT u.id,u.email,u.is_active,u.is_admin,u.email_verified_at,u.created_at,u.last_login_at,u.company_id,c.name company_name,c.role company_role FROM users u JOIN companies c ON c.id=u.company_id ORDER BY u.created_at DESC LIMIT 1000`);res.json({users:q.rows});});
+app.patch('/api/admin/users/:id',auth,admin,requireCsrf,async(req,res)=>{const p=z.object({is_active:z.boolean().optional(),is_admin:z.boolean().optional(),email_verified:z.boolean().optional()}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Ungültige Benutzerdaten'});const d=p.data;const q=await pool.query(`UPDATE users SET is_active=COALESCE($1,is_active),is_admin=COALESCE($2,is_admin),email_verified_at=CASE WHEN $3::boolean IS NULL THEN email_verified_at WHEN $3 THEN COALESCE(email_verified_at,now()) ELSE NULL END WHERE id=$4 RETURNING id,email,is_active,is_admin,email_verified_at,company_id`,[d.is_active??null,d.is_admin??null,d.email_verified??null,req.params.id]);if(!q.rowCount)return res.status(404).json({error:'Benutzer nicht gefunden'});await audit(req,'admin_user_updated','user',req.params.id,d);res.json({user:q.rows[0]});});
+app.get('/api/admin/requests',auth,admin,async(req,res)=>{const q=await pool.query(`SELECT r.*,c.name company_name FROM requests r JOIN companies c ON c.id=r.company_id ORDER BY r.created_at DESC LIMIT 1000`);res.json({requests:q.rows});});
+app.patch('/api/admin/requests/:id',auth,admin,requireCsrf,async(req,res)=>{const p=z.object({status:z.enum(['draft','new','progress','awarded','cancelled'])}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Ungültiger Status'});const q=await pool.query('UPDATE requests SET status=$1,updated_at=now() WHERE id=$2 RETURNING *',[p.data.status,req.params.id]);if(!q.rowCount)return res.status(404).json({error:'Anfrage nicht gefunden'});await audit(req,'admin_request_status','request',req.params.id,{status:p.data.status});res.json({request:q.rows[0]});});
+app.get('/api/admin/offers',auth,admin,async(req,res)=>{const q=await pool.query(`SELECT o.*,r.public_id,r.start_location,r.destination,cp.name provider_name,cc.name customer_name FROM offers o JOIN requests r ON r.id=o.request_id JOIN companies cp ON cp.id=o.provider_company_id JOIN companies cc ON cc.id=r.company_id ORDER BY o.created_at DESC LIMIT 1000`);res.json({offers:q.rows});});
+app.patch('/api/admin/offers/:id',auth,admin,requireCsrf,async(req,res)=>{const p=z.object({status:z.enum(['pending','accepted','declined','withdrawn'])}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Ungültiger Status'});const q=await pool.query('UPDATE offers SET status=$1,updated_at=now() WHERE id=$2 RETURNING *',[p.data.status,req.params.id]);if(!q.rowCount)return res.status(404).json({error:'Angebot nicht gefunden'});await audit(req,'admin_offer_status','offer',req.params.id,{status:p.data.status});res.json({offer:q.rows[0]});});
+app.get('/api/admin/transports',auth,admin,async(req,res)=>{const q=await pool.query(`SELECT t.*,r.public_id,r.start_location,r.destination,cc.name customer_name,cp.name provider_name FROM transports t JOIN requests r ON r.id=t.request_id JOIN companies cc ON cc.id=r.company_id LEFT JOIN offers o ON o.id=t.offer_id LEFT JOIN companies cp ON cp.id=o.provider_company_id ORDER BY t.created_at DESC LIMIT 1000`);res.json({transports:q.rows});});
+app.patch('/api/admin/transports/:id',auth,admin,requireCsrf,async(req,res)=>{const p=z.object({status:z.enum(['planned','underway','done','cancelled'])}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Ungültiger Status'});const q=await pool.query('UPDATE transports SET status=$1,updated_at=now() WHERE id=$2 RETURNING *',[p.data.status,req.params.id]);if(!q.rowCount)return res.status(404).json({error:'Transport nicht gefunden'});await audit(req,'admin_transport_status','transport',req.params.id,{status:p.data.status});res.json({transport:q.rows[0]});});
+app.get('/api/admin/audit',auth,admin,async(req,res)=>{const q=await pool.query(`SELECT a.*,u.email user_email,c.name company_name FROM audit_log a LEFT JOIN users u ON u.id=a.user_id LEFT JOIN companies c ON c.id=a.company_id ORDER BY a.created_at DESC LIMIT 1000`);res.json({audit:q.rows});});
+app.get('/api/admin/invoices',auth,admin,async(req,res)=>{const q=await pool.query('SELECT i.*,c.name company_name FROM invoices i JOIN companies c ON c.id=i.company_id ORDER BY i.invoice_date DESC,i.created_at DESC LIMIT 1000');res.json({invoices:q.rows});});
+app.post('/api/admin/invoices',auth,admin,requireCsrf,async(req,res)=>{const p=z.object({company_id:z.string().uuid(),type:z.string().min(1).max(100),amount_cents:z.coerce.number().int().nonnegative(),invoice_number:z.string().min(2).max(100),invoice_date:z.string().optional(),due_date:z.string().optional(),status:z.enum(['open','paid','cancelled']).default('open')}).safeParse(req.body);if(!p.success)return res.status(400).json({error:'Ungültige Rechnung'});try{const d=p.data;const q=await pool.query(`INSERT INTO invoices(company_id,invoice_number,type,amount_cents,invoice_date,due_date,status) VALUES($1,$2,$3,$4,COALESCE(NULLIF($5,'')::date,current_date),NULLIF($6,'')::date,$7) RETURNING *`,[d.company_id,d.invoice_number,d.type,d.amount_cents,d.invoice_date||'',d.due_date||'',d.status]);await audit(req,'invoice_created','invoice',q.rows[0].id);res.status(201).json({invoice:q.rows[0]});}catch(e){if(e.code==='23505')return res.status(409).json({error:'Rechnungsnummer existiert bereits'});throw e;}});
+
+app.get('/admin', (req,res)=>res.sendFile(path.join(root,'public','admin.html')));
+
+app.use(express.static(path.join(root,'public')));
+app.use((req,res)=>{if(req.method==='GET'&&!req.path.startsWith('/api/'))return res.sendFile(path.join(root,'public','index.html'));res.status(404).json({error:'Not found'});});
+app.use((err,req,res,next)=>{console.error(err);if(err instanceof multer.MulterError)return res.status(400).json({error:err.message});res.status(500).json({error:'Interner Serverfehler'});});
+
+async function ensureBootstrapAdmin(){
+  const email=String(process.env.ADMIN_EMAIL||'').trim().toLowerCase();
+  const password=String(process.env.ADMIN_PASSWORD||'');
+  if(!email || !password) return;
+  if(password.length<10){console.warn('ADMIN_PASSWORD muss mindestens 10 Zeichen lang sein; Admin wurde nicht automatisch angelegt.');return;}
+  const client=await pool.connect();
+  try{
+    await client.query('BEGIN');
+    let u=await client.query('SELECT id,company_id,is_admin FROM users WHERE lower(email)=lower($1)',[email]);
+    if(u.rowCount){
+      const hash=await bcrypt.hash(password,12);
+      await client.query('UPDATE users SET password_hash=$1,is_admin=true,is_active=true,email_verified_at=COALESCE(email_verified_at,now()) WHERE id=$2',[hash,u.rows[0].id]);
+      await client.query('COMMIT');
+      console.log('TRASSA Admin aktualisiert:',email);
+      return;
+    }
+    let c=await client.query('SELECT id FROM companies WHERE lower(email)=lower($1) LIMIT 1',[email]);
+    let companyId=c.rows[0]?.id;
+    if(!companyId){c=await client.query(`INSERT INTO companies(name,role,email,is_verified) VALUES('TRASSA Administration','Sonstige',$1,true) RETURNING id`,[email]);companyId=c.rows[0].id;}
+    const hash=await bcrypt.hash(password,12);
+    await client.query('INSERT INTO users(company_id,email,password_hash,is_admin,is_active,email_verified_at) VALUES($1,$2,$3,true,true,now())',[companyId,email,hash]);
+    await client.query('COMMIT');
+    console.log('TRASSA Admin angelegt:',email);
+  }catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}
+}
+async function boot(){await pool.query(fs.readFileSync(path.join(root,'db/schema.sql'),'utf8'));await ensureBootstrapAdmin();app.listen(PORT,()=>console.log(`TRASSA running on http://localhost:${PORT}`));}
+boot().catch(e=>{console.error(e);process.exit(1);});
++a.length;}
+  sql+=' ORDER BY d.created_at DESC';
+  const q=await pool.query(sql,a);
+  res.json({documents:q.rows});
+});
 app.post('/api/documents',auth,requireCsrf,upload.single('file'),async(req,res)=>{if(!req.file)return res.status(400).json({error:'Datei fehlt oder Dateityp nicht erlaubt'});let requestId=req.body.request_id||null;if(requestId){const rq=await pool.query('SELECT id,company_id FROM requests WHERE id=$1',[requestId]);if(!rq.rowCount)return res.status(400).json({error:'Anfrage nicht gefunden'});if(rq.rows[0].company_id!==req.user.companyId&&!req.userRow.is_admin)return res.status(403).json({error:'Dokumente können nur vom Anfrage-Eigentümer verknüpft werden'});}const hash=crypto.createHash('sha256').update(fs.readFileSync(req.file.path)).digest('hex');try{const q=await pool.query('INSERT INTO documents(company_id,request_id,original_name,stored_name,mime_type,size_bytes,sha256) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,original_name,mime_type,size_bytes,created_at,request_id',[req.user.companyId,requestId,req.file.originalname,req.file.filename,req.file.mimetype,req.file.size,hash]);await audit(req,'document_uploaded','document',q.rows[0].id);res.status(201).json({document:q.rows[0]});}catch(e){fs.rmSync(req.file.path,{force:true});throw e;}});
 app.patch('/api/documents/:id',auth,requireCsrf,async(req,res)=>{
   const q=await pool.query('SELECT * FROM documents WHERE id=$1 AND company_id=$2',[req.params.id,req.user.companyId]);
