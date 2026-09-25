@@ -85,7 +85,13 @@ function normalizeRole(value) {
   if (key === 'evu' || key.includes('eisenbahnverkehr') || key.includes('rail operator')) return 'EVU';
   if (key === 'wagenhalter' || key.includes('wagon owner') || key.includes('güterwagen') || key.includes('freight wagon')) return 'Wagenhalter';
   if (key === 'kranunternehmen' || key.includes('crane')) return 'Kranunternehmen';
-  if (key === 'logistiker' || key.includes('logistik') || key.includes('logistics') || key.includes('spedition') || key.includes('freight forward')) return 'Logistiker';
+  if (key === 'bauunternehmen' || key.includes('construction company')) return 'Bauunternehmen';
+  if (key === 'infrastrukturunternehmen' || key.includes('infrastructure company')) return 'Infrastrukturunternehmen';
+  if (key === 'gleisbauunternehmen' || key.includes('track construction')) return 'Gleisbauunternehmen';
+  if (key === 'logistikunternehmen' || key === 'logistiker' || key.includes('logistics company')) return 'Logistikunternehmen';
+  if (key === 'speditionen' || key.includes('spedition') || key.includes('freight forward')) return 'Speditionen';
+  if (key === 'vermieter von güterwagen' || key.includes('freight wagon rental')) return 'Vermieter von Güterwagen';
+  if (key === 'werkstätten' || key === 'werkstaetten' || key.includes('workshop')) return 'Werkstätten';
   return 'Sonstige';
 }
 const companySchema = z.object({ company:z.string().trim().min(2).max(200), role:z.string().trim().min(1).max(200).transform(normalizeRole), first_name:z.string().trim().min(1).max(100), last_name:z.string().trim().min(1).max(100), email:z.string().email().max(254), password:z.string().min(10).max(128) });
