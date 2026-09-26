@@ -93,6 +93,13 @@ a{color:var(--accent)}
 .detail-grid .v{font-size:13px;font-weight:700;margin-top:3px}
 .actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
 .chat{display:flex;flex-direction:column;height:calc(100vh - var(--top-h) - var(--nav-h) - 24px);max-height:560px}
+.role-pill{display:inline-block;align-self:flex-start;margin-top:7px;padding:4px 8px;border-radius:999px;background:#fef3c7;color:#92400e;font-size:10px;font-weight:800;text-transform:uppercase}
+.chat-context{display:block;width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:8px;color:var(--text);font:inherit;cursor:pointer}
+.chat-context-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;font-size:13px}
+.chat-context .meta{margin-top:6px}
+.chat-role{margin-top:8px;font-size:12px;font-weight:800;color:#0f3d28}
+.chat-price{margin-top:6px;font-size:12px;font-weight:800}
+.chat-link{margin-top:8px;font-size:11px;font-weight:800;color:var(--accent)}
 .chat-thread{flex:1;overflow:auto;padding:8px 0;display:flex;flex-direction:column;gap:8px}
 .bubble{max-width:82%;padding:10px 12px;border-radius:14px;font-size:14px;line-height:1.4}
 .bubble.in{align-self:flex-start;background:#fff;border:1px solid var(--line)}

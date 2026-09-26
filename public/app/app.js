@@ -404,9 +404,11 @@ async function renderMessages(root) {
       ${state.conversations.map((c, i) => `
         <button class="item" onclick="openChat(${i})">
           <div class="item-row">
-            <span class="title">${esc(c.names || 'Gespräch')}</span>
+            <span class="title">#TR-${esc(c.public_id)} · ${esc(c.start_location)} → ${esc(c.destination)}</span>
             ${c.unread ? `<span class="badge green">${esc(c.unread)}</span>` : ''}
           </div>
+          <div class="role-pill">Du bist ${esc(c.role_label)}</div>
+          <div class="meta">${esc(c.partner_name || c.names || 'Gespräch')}</div>
           <div class="meta">${esc(c.last || '')}</div>
         </button>
       `).join('') || '<div class="empty">Noch keine Nachrichten.<br>Chat startet über Angebote.</div>'}
@@ -424,9 +426,17 @@ async function renderChat(root, c) {
   if (!c) return navigate('messages');
   const out = await api('/conversations/' + encodeURIComponent(c.id) + '/messages');
   state.messages = out.messages || [];
+  const currentStatus = c.transport_status || c.request_status;
   root.innerHTML = `
     <div class="chat">
-      <div style="font-weight:700;margin-bottom:8px">${esc(c.names || 'Chat')}</div>
+      <button class="chat-context" type="button" onclick="openRequest('${esc(c.request_id)}')">
+        <div class="chat-context-top"><strong>#TR-${esc(c.public_id)} · ${esc(c.start_location)} → ${esc(c.destination)}</strong>${statusBadge(currentStatus)}</div>
+        <div class="meta">${esc(fmtDate(c.from_date))} – ${esc(fmtDate(c.to_date))}</div>
+        <div class="chat-role">Deine Rolle: ${esc(c.role_label)}</div>
+        <div class="meta">${c.role === 'customer' ? 'Transportanbieter' : 'Auftraggeber'}: ${esc(c.partner_name || c.names)}</div>
+        ${c.price_cents != null ? `<div class="chat-price">Vereinbarter Preis: ${esc(money(c.price_cents))}</div>` : ''}
+        <div class="chat-link">Transportdetails öffnen →</div>
+      </button>
       <div class="chat-thread" id="thread">
         ${state.messages.map((m) => `
           <div class="bubble ${m.sender_user_id === user.id ? 'out' : 'in'}">
