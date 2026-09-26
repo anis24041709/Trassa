@@ -56,6 +56,14 @@ function statusBadge(s) {
   const cls = ({ awarded: 'green', accepted: 'green', done: 'green', new: 'amber', pending: 'amber', progress: 'amber', planned: 'amber', underway: 'amber', cancelled: 'red', declined: 'red', withdrawn: 'red', expired: 'red' })[s] || '';
   return `<span class="badge ${cls}">${esc(statusLabel(s))}</span>`;
 }
+function isNewFor24Hours(createdAt) {
+  const created = new Date(createdAt).getTime();
+  return Number.isFinite(created) && Date.now() - created < 24 * 60 * 60 * 1000;
+}
+function requestBadge(r) {
+  if (r?.status === 'new') return isNewFor24Hours(r.created_at) ? '<span class="badge amber">Neu</span>' : '';
+  return statusBadge(r?.status);
+}
 function fmtDate(v) {
   if (!v) return '—';
   const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -201,7 +209,7 @@ async function renderDashboard(root) {
   const reqs = d.requests || [];
   $('dash-req').innerHTML = reqs.slice(0, 5).map((r) => `
     <button class="item" onclick="openRequest('${esc(r.id)}')">
-      <div class="item-row"><span class="title">${esc(r.route || r.title || 'Anfrage')}</span>${statusBadge(r.status)}</div>
+      <div class="item-row"><span class="title">${esc(r.route || r.title || 'Anfrage')}</span>${requestBadge(r)}</div>
       <div class="meta">#TR-${esc(r.public_id)} · ${esc(fmtDate(r.from_date) + ' – ' + fmtDate(r.to_date))}</div>
     </button>
   `).join('') || '<div class="empty">Keine Anfragen</div>';
@@ -225,7 +233,7 @@ async function renderMarket(root) {
     state.market = out.requests || [];
     $('m-list').innerHTML = state.market.map((r) => `
       <button class="item" onclick="openRequest('${esc(r.id)}', true)">
-        <div class="item-row"><span class="title">${esc(r.route || r.title)}</span>${statusBadge(r.status)}</div>
+        <div class="item-row"><span class="title">${esc(r.route || r.title)}</span>${requestBadge(r)}</div>
         <div class="meta">#TR-${esc(r.public_id)} · ${esc(r.gewicht || (r.weight_t ? r.weight_t + ' t' : '—'))}</div>
         <div class="meta">${esc(fmtDate(r.from_date))} – ${esc(fmtDate(r.to_date))}</div>
       </button>
@@ -243,7 +251,7 @@ async function renderRequests(root) {
     <div class="list">
       ${state.requests.map((r) => `
         <button class="item" onclick="openRequest('${esc(r.id)}')">
-          <div class="item-row"><span class="title">${esc(r.route || r.title)}</span>${statusBadge(r.status)}</div>
+          <div class="item-row"><span class="title">${esc(r.route || r.title)}</span>${requestBadge(r)}</div>
           <div class="meta">#TR-${esc(r.public_id)} · Angebote: ${esc(r.offers ?? 0)}</div>
         </button>
       `).join('') || '<div class="empty">Noch keine Anfragen</div>'}
@@ -267,7 +275,7 @@ async function renderRequestDetail(root, r) {
   root.innerHTML = `
     <div class="card" style="margin-bottom:12px">
       <div style="font-weight:800;font-size:17px;margin-bottom:4px">${esc(r.title || r.route)}</div>
-      <div class="meta">#TR-${esc(r.public_id)} · ${statusBadge(r.status)}</div>
+      <div class="meta">#TR-${esc(r.public_id)} ${requestBadge(r)}</div>
     </div>
     <div class="detail-grid">
       <div class="box"><div class="k">Strecke</div><div class="v">${esc(r.route || (r.start_location + ' → ' + r.destination))}</div></div>

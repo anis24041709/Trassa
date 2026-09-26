@@ -1,4 +1,4 @@
-const CACHE = 'trassa-app-v3-request-expiry';
+const CACHE = 'trassa-app-v4-new-badge-24h';
 const ASSETS = ['./', './index.html', './styles.css', './app.js', './manifest.webmanifest'];
 
 self.addEventListener('install', (e) => {
