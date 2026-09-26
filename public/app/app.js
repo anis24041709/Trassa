@@ -47,13 +47,13 @@ async function api(path, options = {}) {
 
 function statusLabel(s) {
   return ({
-    draft: 'Entwurf', new: 'Offen', progress: 'In Bearbeitung', awarded: 'Vergeben', cancelled: 'Storniert',
+    draft: 'Entwurf', new: 'Offen', progress: 'In Bearbeitung', awarded: 'Vergeben', cancelled: 'Storniert', expired: 'Abgelaufen',
     pending: 'Offen', accepted: 'Angenommen', declined: 'Abgelehnt', withdrawn: 'Zurückgezogen',
     planned: 'Geplant', underway: 'Unterwegs', done: 'Fertig'
   })[s] || s || '—';
 }
 function statusBadge(s) {
-  const cls = ({ awarded: 'green', accepted: 'green', done: 'green', new: 'amber', pending: 'amber', progress: 'amber', planned: 'amber', underway: 'amber', cancelled: 'red', declined: 'red', withdrawn: 'red' })[s] || '';
+  const cls = ({ awarded: 'green', accepted: 'green', done: 'green', new: 'amber', pending: 'amber', progress: 'amber', planned: 'amber', underway: 'amber', cancelled: 'red', declined: 'red', withdrawn: 'red', expired: 'red' })[s] || '';
   return `<span class="badge ${cls}">${esc(statusLabel(s))}</span>`;
 }
 function fmtDate(v) {

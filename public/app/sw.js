@@ -1,4 +1,4 @@
-const CACHE = 'trassa-app-v2-chat-context';
+const CACHE = 'trassa-app-v3-request-expiry';
 const ASSETS = ['./', './index.html', './styles.css', './app.js', './manifest.webmanifest'];
 
 self.addEventListener('install', (e) => {

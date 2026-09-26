@@ -1,6 +1,6 @@
 /* status badges – extend global map from index.html (avoid const redeclare) */
 (function(){
-  const extra={draft:'grey',new:'amber',progress:'amber',awarded:'green',cancelled:'red',pending:'amber',accepted:'green',declined:'red',withdrawn:'grey',planned:'amber',underway:'amber',done:'green',paid:'green',open:'blue'};
+  const extra={draft:'grey',new:'amber',progress:'amber',awarded:'green',cancelled:'red',expired:'grey',pending:'amber',accepted:'green',declined:'red',withdrawn:'grey',planned:'amber',underway:'amber',done:'green',paid:'green',open:'blue'};
   if(typeof statusClass==='object' && statusClass){
     Object.assign(statusClass, extra);
   } else {
@@ -205,10 +205,10 @@ function requestDisplayValue(value){
 }
 function requestStatusLabel(status){
   const map=lang==='de'?{
-    draft:'Entwurf',new:'Offen',progress:'In Bearbeitung',awarded:'Vergeben',cancelled:'Storniert',
+    draft:'Entwurf',new:'Offen',progress:'In Bearbeitung',awarded:'Vergeben',cancelled:'Storniert',expired:'Abgelaufen',
     pending:'Offen',accepted:'Angenommen',declined:'Abgelehnt',withdrawn:'Zurückgezogen'
   }:{
-    draft:'Draft',new:'Open',progress:'In progress',awarded:'Awarded',cancelled:'Cancelled',
+    draft:'Draft',new:'Open',progress:'In progress',awarded:'Awarded',cancelled:'Cancelled',expired:'Expired',
     pending:'Pending',accepted:'Accepted',declined:'Declined',withdrawn:'Withdrawn'
   };
   const t=translations[lang] || {};
@@ -925,7 +925,7 @@ function initPasswordResetFromUrl(){
 }
 
 
-function conversationStatusLabel(s){return ({draft:'Entwurf',new:'Offen',progress:'In Bearbeitung',awarded:'Vergeben',cancelled:'Storniert',pending:'Offen',accepted:'Angenommen',declined:'Abgelehnt',withdrawn:'Zurückgezogen',planned:'Geplant',underway:'Unterwegs',done:'Abgeschlossen'})[s]||s||'—'}
+function conversationStatusLabel(s){return ({draft:'Entwurf',new:'Offen',progress:'In Bearbeitung',awarded:'Vergeben',cancelled:'Storniert',expired:'Abgelaufen',pending:'Offen',accepted:'Angenommen',declined:'Abgelehnt',withdrawn:'Zurückgezogen',planned:'Geplant',underway:'Unterwegs',done:'Abgeschlossen'})[s]||s||'—'}
 function conversationPeriod(c){return `${c.from_date?formatDateDMY(c.from_date):'—'} – ${c.to_date?formatDateDMY(c.to_date):'—'}`}
 function conversationCard(c){const status=c.transport_status||c.request_status;return `<button type="button" class="chat-transport-card" onclick="window.openRequestDetailById('${esc(c.request_id)}')"><span class="chat-card-top"><strong>#TR-${esc(c.public_id)} · ${esc(c.start_location)} → ${esc(c.destination)}</strong><span class="status-badge ${statusClass[status]||'grey'}">${esc(conversationStatusLabel(status))}</span></span><span class="chat-card-meta">${esc(conversationPeriod(c))}</span><span class="chat-card-meta"><b>Deine Rolle: ${esc(c.role_label)}</b> · ${c.role==='customer'?'Transportanbieter':'Auftraggeber'}: ${esc(c.partner_name||c.names)}</span>${c.price_cents!=null?`<span class="chat-card-price">Vereinbarter Preis: ${(Number(c.price_cents)/100).toLocaleString('de-DE',{style:'currency',currency:'EUR'})}</span>`:''}<span class="chat-card-link">Transportdetails öffnen →</span></button>`}
 async function renderMessages(){try{const out=await api('/conversations');trassaConversations=out.conversations||[];document.getElementById('conv-list').innerHTML=trassaConversations.map((c,i)=>`<div class="conv-item ${i===0?'active':''}" onclick="selectConversation(${i})"><div class="c-name">#TR-${esc(c.public_id)} · ${esc(c.start_location)} → ${esc(c.destination)}${c.unread?`<span class="c-unread">${c.unread}</span>`:''}</div><div class="c-role">Du bist ${esc(c.role_label)}</div><div class="c-partner">${esc(c.partner_name||c.names)}</div><div class="c-last">${esc(c.last)}</div><div class="c-time">${new Date(c.last_at).toLocaleString(lang==='de'?'de-DE':'en-GB')}</div></div>`).join('')||'<div class="app-placeholder"><div class="ico">💬</div><h2>Noch keine Gespräche</h2><p>Nach einem Angebot können hier Nachrichten ausgetauscht werden.</p></div>';if(trassaConversations[0])await selectConversation(0)}catch(e){apiToast(e.message)}}
