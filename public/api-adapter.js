@@ -218,13 +218,14 @@ function renderRealRequestDetail(r, docs){
   if(!r) return;
   const locale=lang==='de'?'de-DE':'en-GB';
   const labels=lang==='de'
-    ? {route:'Strecke', period:'Zeitraum', weight:'Gewicht', gauge:'Lichtraumprofil', wagon:'Wagenart', hazardous:'Gefahrgut', created:'Erstellt am', offers:'Angebote', status:'Status', yes:'Ja', no:'Nein', showOffers:'Angebote ansehen'}
-    : {route:'Route', period:'Timeframe', weight:'Weight', gauge:'Loading gauge', wagon:'Wagon type', hazardous:'Hazardous goods', created:'Created on', offers:'Offers', status:'Status', yes:'Yes', no:'No', showOffers:'View offers'};
+    ? {route:'Strecke', period:'Zeitraum', weight:'Gewicht', length:'Länge', gauge:'Lichtraumprofil', wagon:'Wagenart', hazardous:'Gefahrgut', created:'Erstellt am', offers:'Angebote', status:'Status', yes:'Ja', no:'Nein', showOffers:'Angebote ansehen'}
+    : {route:'Route', period:'Timeframe', weight:'Weight', length:'Length', gauge:'Loading gauge', wagon:'Wagon type', hazardous:'Hazardous goods', created:'Created on', offers:'Offers', status:'Status', yes:'Yes', no:'No', showOffers:'View offers'};
   const start=r.start_location || '';
   const destination=r.destination || '';
   const route=(start || destination) ? `${start || '—'} → ${destination || '—'}` : (r.route || '—');
   const period=(r.from_date || r.to_date) ? `${r.from_date ? formatDateDMY(r.from_date) : '—'} – ${r.to_date ? formatDateDMY(r.to_date) : '—'}` : (r.zeit || '—');
   const weight=r.gewicht || (r.weight_t ? `${r.weight_t} t` : '—');
+  const length=r.laenge || (r.length_m ? `${r.length_m} m` : '—');
   const created=r.created_at ? formatDateDMY(r.created_at) : '—';
   const offers=Number(r.offers || 0);
   document.getElementById('req-detail-h1').textContent=r.title || route;
@@ -233,6 +234,7 @@ function renderRealRequestDetail(r, docs){
     [labels.route,route],
     [labels.period,period],
     [labels.weight,weight],
+    [labels.length,length],
     [labels.gauge,requestDisplayValue(r.loading_gauge)],
     [labels.wagon,requestDisplayValue(r.wagon_type)],
     [labels.hazardous,r.hazardous_goods?labels.yes:labels.no],
@@ -356,6 +358,7 @@ async function startEditRequest(requestId){
     set('nr-von', (r.from_date||'').toString().slice(0,10));
     set('nr-bis', (r.to_date||'').toString().slice(0,10));
     set('nr-gewicht', r.weight_t!=null?r.weight_t:'');
+    set('nr-laenge', r.length_m!=null?r.length_m:'');
     set('nr-titel', r.title||'');
     set('nr-beschreibung', r.description||'');
     // Selects: best effort by value/text

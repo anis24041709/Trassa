@@ -2105,7 +2105,11 @@ body.app-mode .doc-row .d-meta{font-size:11px;color:#6b7280;font-family:var(--mo
           <div class="form-grid-4">
             <div class="field">
               <label data-i18n="nr_gewicht">Gewicht (t)</label>
-              <input type="number" id="nr-gewicht" data-i18n-ph="nr_gewicht_ph" placeholder="z. B. 64">
+              <input type="number" id="nr-gewicht" min="0" step="0.1" data-i18n-ph="nr_gewicht_ph" placeholder="z. B. 64">
+            </div>
+            <div class="field">
+              <label data-i18n="nr_laenge">Länge (m)</label>
+              <input type="number" id="nr-laenge" min="0" step="0.1" data-i18n-ph="nr_laenge_ph" placeholder="z. B. 24,5">
             </div>
             <div class="field">
               <label data-i18n="nr_licht">Lichtraumprofil</label>
@@ -2499,7 +2503,7 @@ const translations = {
     nr_start:"Start (Bf./Standort)", nr_start_ph:"z. B. Köln Eifeltor",
     nr_ziel:"Ziel", nr_ziel_ph:"z. B. Hannover Messe/Laatzen",
     nr_von:"Zeitraum von", nr_bis:"Zeitraum bis",
-    nr_gewicht:"Gewicht (t)", nr_gewicht_ph:"z. B. 64",
+    nr_gewicht:"Gewicht (t)", nr_gewicht_ph:"z. B. 64", nr_laenge:"Länge (m)", nr_laenge_ph:"z. B. 24,5",
     nr_licht:"Lichtraumprofil", nr_licht_standard:"Standard", nr_licht_erweitert:"Erweitert", nr_licht_xxl:"XXL / Großraum",
     nr_wagenart:"Wagenart", nr_wa_flach:"Flachwagen", nr_wa_tief:"Tiefladewagen", nr_wa_schiebe:"Schiebewandwagen",
     nr_wa_kessel:"Kesselwagen", nr_wa_container:"Containertragwagen", nr_wa_sonder:"Sonderwagen", nr_wa_kran:"Kran", nr_wa_stopf:"Stopfmaschine", nr_wa_andere:"Andere",
@@ -2725,7 +2729,7 @@ const translations = {
     nr_start:"Start (station/location)", nr_start_ph:"e.g. Cologne Eifeltor",
     nr_ziel:"Destination", nr_ziel_ph:"e.g. Hanover Messe/Laatzen",
     nr_von:"Timeframe from", nr_bis:"Timeframe to",
-    nr_gewicht:"Weight (t)", nr_gewicht_ph:"e.g. 64",
+    nr_gewicht:"Weight (t)", nr_gewicht_ph:"e.g. 64", nr_laenge:"Length (m)", nr_laenge_ph:"e.g. 24.5",
     nr_licht:"Loading gauge", nr_licht_standard:"Standard", nr_licht_erweitert:"Extended", nr_licht_xxl:"XXL / oversized",
     nr_wagenart:"Wagon type", nr_wa_flach:"Flat wagon", nr_wa_tief:"Well wagon", nr_wa_schiebe:"Sliding wall wagon",
     nr_wa_kessel:"Tank wagon", nr_wa_container:"Container wagon", nr_wa_sonder:"Special wagon", nr_wa_kran:"Crane", nr_wa_stopf:"Tamping machine", nr_wa_andere:"Other",
@@ -3370,7 +3374,7 @@ function openNewRequest(){
 }
 
 function resetNewRequestForm(){
-  ['nr-start','nr-ziel','nr-von','nr-bis','nr-gewicht','nr-titel','nr-beschreibung'].forEach(id=>{
+  ['nr-start','nr-ziel','nr-von','nr-bis','nr-gewicht','nr-laenge','nr-titel','nr-beschreibung'].forEach(id=>{
     document.getElementById(id).value = '';
   });
   document.getElementById('nr-licht').selectedIndex = 0;
@@ -3403,6 +3407,7 @@ function collectNewRequestData(){
     von: document.getElementById('nr-von').value,
     bis: document.getElementById('nr-bis').value,
     gewicht: document.getElementById('nr-gewicht').value.trim(),
+    laenge: document.getElementById('nr-laenge').value.trim(),
     lichtKey: document.getElementById('nr-licht').selectedOptions[0].getAttribute('data-i18n'),
     wagenartKey: document.getElementById('nr-wagenart').selectedOptions[0].getAttribute('data-i18n'),
     gefahrValue: document.getElementById('nr-gefahr').value,
