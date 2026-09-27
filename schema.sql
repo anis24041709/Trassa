@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS requests (
   from_date date,
   to_date date,
   weight_t numeric(12,2),
+  length_m numeric(12,2),
   loading_gauge text,
   wagon_type text,
   hazardous_goods boolean NOT NULL DEFAULT false,
@@ -54,6 +55,7 @@ CREATE TABLE IF NOT EXISTS requests (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE requests ADD COLUMN IF NOT EXISTS length_m numeric(12,2);
 CREATE INDEX IF NOT EXISTS requests_status_idx ON requests(status);
 CREATE INDEX IF NOT EXISTS requests_company_idx ON requests(company_id);
 CREATE INDEX IF NOT EXISTS requests_dates_idx ON requests(from_date,to_date);
