@@ -281,6 +281,7 @@ async function renderRequestDetail(root, r) {
       <div class="box"><div class="k">Strecke</div><div class="v">${esc(r.route || (r.start_location + ' → ' + r.destination))}</div></div>
       <div class="box"><div class="k">Zeitraum</div><div class="v">${esc(fmtDate(r.from_date))} – ${esc(fmtDate(r.to_date))}</div></div>
       <div class="box"><div class="k">Gewicht</div><div class="v">${esc(r.gewicht || (r.weight_t != null ? r.weight_t + ' t' : '—'))}</div></div>
+      <div class="box"><div class="k">Länge</div><div class="v">${esc(r.laenge || (r.length_m != null ? r.length_m + ' m' : '—'))}</div></div>
       <div class="box"><div class="k">Wagenart</div><div class="v">${esc(r.wagon_type || '—')}</div></div>
     </div>
     <div class="card" style="margin-bottom:12px">
@@ -488,6 +489,7 @@ function renderNewRequest(root) {
       <div class="field"><label>Von</label><input id="nr-von" type="date"></div>
       <div class="field"><label>Bis</label><input id="nr-bis" type="date"></div>
       <div class="field"><label>Gewicht (t)</label><input id="nr-gewicht" type="number" min="0" step="0.1"></div>
+      <div class="field"><label>Länge (m)</label><input id="nr-laenge" type="number" min="0" step="0.1"></div>
       <div class="field"><label>Beschreibung</label><textarea id="nr-beschreibung"></textarea></div>
       <button class="btn btn-primary btn-block" onclick="createRequest()">Veröffentlichen</button>
       <button class="btn btn-ghost btn-block" style="margin-top:8px" onclick="createRequest(true)">Als Entwurf</button>
@@ -502,6 +504,7 @@ async function createRequest(draft) {
     von: $('nr-von').value,
     bis: $('nr-bis').value,
     gewicht: $('nr-gewicht').value ? Number($('nr-gewicht').value) : null,
+    laenge: $('nr-laenge').value ? Number($('nr-laenge').value) : null,
     titel: $('nr-titel').value.trim(),
     beschreibung: $('nr-beschreibung').value.trim(),
     status: draft ? 'draft' : 'new',
