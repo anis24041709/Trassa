@@ -30,6 +30,12 @@ const APP_URL = (process.env.APP_URL || `http://localhost:${PORT}`).replace(/\/$
 const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB || 25);
 const uploadDir = path.join(root, 'uploads');
 fs.mkdirSync(uploadDir, { recursive: true });
+const normalizeLocationSearch = (value) => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+const operationalLocations = JSON.parse(fs.readFileSync(path.join(root, 'data', 'operational-locations.json'), 'utf8')).map((location) => ({
+  ...location,
+  _code: normalizeLocationSearch(location.c),
+  _name: normalizeLocationSearch(`${location.n} ${location.s || ''}`),
+}));
 
 app.set('trust proxy', 1);
 app.use(helmet({ contentSecurityPolicy: false }));
@@ -105,6 +111,20 @@ async function sendMail(to, subject, html) {
 
 app.get('/api/health', async (_,res)=>{ try { await pool.query('SELECT 1'); res.json({ ok:true, service:'trassa-portal', time:new Date().toISOString() }); } catch { res.status(503).json({ ok:false }); } });
 app.get('/api/csrf', ensureCsrf, (req,res)=>res.json({ csrfToken:req.cookies[csrfCookie] }));
+app.get('/api/locations',auth,(req,res)=>{
+  const q=normalizeLocationSearch(String(req.query.q||'').slice(0,100));
+  const limit=Math.min(Math.max(Number.parseInt(req.query.limit,10)||12,1),20);
+  if(q.length<2)return res.json({locations:[]});
+  const matches=operationalLocations
+    .filter((x)=>x._code.includes(q)||x._name.includes(q))
+    .sort((a,b)=>{
+      const score=(x)=>x._code===q?0:x._code.startsWith(q)?1:x._name.startsWith(q)?2:x._name.includes(` ${q}`)?3:4;
+      return score(a)-score(b)||a.n.localeCompare(b.n,'de')||a.c.localeCompare(b.c,'de');
+    })
+    .slice(0,limit)
+    .map(({c,n,s,t})=>({code:c,name:n,shortName:s,type:t}));
+  res.json({locations:matches});
+});
 
 app.post('/api/auth/register', authLimiter, ensureCsrf, requireCsrf, async (req,res)=>{
   const p=companySchema.safeParse(req.body); if(!p.success)return res.status(400).json({error:'Ungültige Registrierungsdaten'});
