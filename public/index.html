@@ -158,6 +158,15 @@
   }
   .field input:focus, .field select:focus{outline:none;border-color:var(--amber);}
   .field select{cursor:pointer;}
+  .location-field{position:relative;}
+  .location-results{position:absolute;z-index:90;left:0;right:0;top:calc(100% + 5px);display:none;max-height:280px;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 12px 28px rgba(15,35,25,.16);}
+  .location-results.open{display:block;}
+  .location-option{display:block;width:100%;padding:10px 12px;border:0;border-bottom:1px solid var(--line);background:#fff;text-align:left;color:var(--text);cursor:pointer;}
+  .location-option:last-child{border-bottom:0;}
+  .location-option:hover,.location-option.active{background:#edf8f3;}
+  .location-option strong{display:block;font-size:13px;}
+  .location-option span{display:block;margin-top:2px;font-size:11px;color:var(--text-dim);}
+  .location-hint{padding:9px 12px;font-size:11px;color:var(--text-dim);}
   .modal form .btn{width:100%;text-align:center;margin-top:6px;border:none;}
   .modal-foot{margin-top:18px;text-align:center;font-size:13px;color:var(--text-dim);}
   .modal-foot a{color:var(--amber);cursor:pointer;text-decoration:none;}
@@ -2085,13 +2094,13 @@ body.app-mode .doc-row .d-meta{font-size:11px;color:#6b7280;font-family:var(--mo
         <div class="step-block">
           <div class="step-h" data-i18n="step1_h">Schritt 1 / 3 – Transportdaten</div>
           <div class="form-grid-4">
-            <div class="field">
+            <div class="field location-field">
               <label data-i18n="nr_start">Start (Bf./Standort)</label>
-              <input type="text" id="nr-start" data-i18n-ph="nr_start_ph" placeholder="z. B. Köln Eifeltor">
+              <input type="text" id="nr-start" data-i18n-ph="nr_start_ph" placeholder="Name oder DS100-Code" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false">
             </div>
-            <div class="field">
+            <div class="field location-field">
               <label data-i18n="nr_ziel">Ziel</label>
-              <input type="text" id="nr-ziel" data-i18n-ph="nr_ziel_ph" placeholder="z. B. Hannover Messe/Laatzen">
+              <input type="text" id="nr-ziel" data-i18n-ph="nr_ziel_ph" placeholder="Name oder DS100-Code" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false">
             </div>
             <div class="field">
               <label data-i18n="nr_von">Zeitraum von</label>
@@ -3368,9 +3377,46 @@ function submitSettings(event){
 /* ---------------- new request form ---------------- */
 let uploadedFiles = [];
 
+function initLocationAutocomplete(inputId){
+  const input=document.getElementById(inputId);
+  if(!input||input.dataset.locationAutocomplete==='true')return;
+  input.dataset.locationAutocomplete='true';
+  const list=document.createElement('div');
+  list.className='location-results';
+  list.id=`${inputId}-results`;
+  list.setAttribute('role','listbox');
+  input.setAttribute('aria-controls',list.id);
+  input.parentElement.appendChild(list);
+  let results=[],active=-1,timer=null,controller=null;
+  const close=()=>{list.classList.remove('open');input.setAttribute('aria-expanded','false');active=-1;};
+  const choose=(item)=>{input.value=`${item.name} (${item.code})`;close();input.dispatchEvent(new Event('change',{bubbles:true}));};
+  const render=()=>{
+    if(!results.length){list.innerHTML='<div class="location-hint">Keine passende Betriebsstelle – Freitext ist möglich.</div>';}
+    else list.innerHTML=results.map((x,i)=>`<button type="button" class="location-option ${i===active?'active':''}" role="option" aria-selected="${i===active}" data-index="${i}"><strong>${esc(x.name)} · ${esc(x.code)}</strong><span>${esc(x.type||'Betriebsstelle')}${x.shortName&&x.shortName!==x.name?' · '+esc(x.shortName):''}</span></button>`).join('');
+    list.classList.add('open');input.setAttribute('aria-expanded','true');
+  };
+  input.addEventListener('input',()=>{
+    clearTimeout(timer);controller?.abort();
+    const q=input.value.trim();if(q.length<2){results=[];close();return;}
+    timer=setTimeout(async()=>{try{controller=new AbortController();const r=await fetch(`/api/locations?q=${encodeURIComponent(q)}&limit=12`,{credentials:'same-origin',signal:controller.signal});if(!r.ok)throw new Error();results=(await r.json()).locations||[];active=-1;render();}catch(e){if(e.name!=='AbortError')close();}},150);
+  });
+  input.addEventListener('keydown',(e)=>{
+    if(!list.classList.contains('open'))return;
+    if(e.key==='ArrowDown'){e.preventDefault();active=Math.min(active+1,results.length-1);render();}
+    else if(e.key==='ArrowUp'){e.preventDefault();active=Math.max(active-1,0);render();}
+    else if(e.key==='Enter'&&active>=0){e.preventDefault();choose(results[active]);}
+    else if(e.key==='Escape')close();
+  });
+  list.addEventListener('mousedown',(e)=>{const option=e.target.closest('[data-index]');if(option){e.preventDefault();choose(results[Number(option.dataset.index)]);}});
+  input.addEventListener('blur',()=>setTimeout(close,120));
+}
+
+function initRequestLocationSearch(){initLocationAutocomplete('nr-start');initLocationAutocomplete('nr-ziel');}
+
 function openNewRequest(){
   resetNewRequestForm();
   switchAppPanel('neue-anfrage');
+  initRequestLocationSearch();
 }
 
 function resetNewRequestForm(){
