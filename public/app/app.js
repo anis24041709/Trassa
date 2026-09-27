@@ -484,8 +484,8 @@ function renderNewRequest(root) {
   root.innerHTML = `
     <div class="card">
       <div class="field"><label>Titel</label><input id="nr-titel" placeholder="Kurzbeschreibung"></div>
-      <div class="field"><label>Start</label><input id="nr-start" placeholder="z. B. Köln"></div>
-      <div class="field"><label>Ziel</label><input id="nr-ziel" placeholder="z. B. Hamburg"></div>
+      <div class="field location-field"><label>Start</label><input id="nr-start" placeholder="Name oder DS100-Code" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false"></div>
+      <div class="field location-field"><label>Ziel</label><input id="nr-ziel" placeholder="Name oder DS100-Code" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false"></div>
       <div class="field"><label>Von</label><input id="nr-von" type="date"></div>
       <div class="field"><label>Bis</label><input id="nr-bis" type="date"></div>
       <div class="field"><label>Gewicht (t)</label><input id="nr-gewicht" type="number" min="0" step="0.1"></div>
@@ -495,6 +495,45 @@ function renderNewRequest(root) {
       <button class="btn btn-ghost btn-block" style="margin-top:8px" onclick="createRequest(true)">Als Entwurf</button>
     </div>
   `;
+  initLocationAutocomplete('nr-start');
+  initLocationAutocomplete('nr-ziel');
+}
+
+function initLocationAutocomplete(inputId) {
+  const input = $(inputId);
+  if (!input || input.dataset.locationAutocomplete === 'true') return;
+  input.dataset.locationAutocomplete = 'true';
+  const list = document.createElement('div');
+  list.className = 'location-results';
+  list.id = inputId + '-results';
+  list.setAttribute('role', 'listbox');
+  input.setAttribute('aria-controls', list.id);
+  input.parentElement.appendChild(list);
+  let results = [], active = -1, timer = null, controller = null;
+  const close = () => { list.classList.remove('open'); input.setAttribute('aria-expanded', 'false'); active = -1; };
+  const choose = (item) => { input.value = `${item.name} (${item.code})`; close(); };
+  const render = () => {
+    list.innerHTML = results.length ? results.map((x, i) => `<button type="button" class="location-option ${i === active ? 'active' : ''}" role="option" aria-selected="${i === active}" data-index="${i}"><strong>${esc(x.name)} · ${esc(x.code)}</strong><span>${esc(x.type || 'Betriebsstelle')}${x.shortName && x.shortName !== x.name ? ' · ' + esc(x.shortName) : ''}</span></button>`).join('') : '<div class="location-hint">Keine passende Betriebsstelle – Freitext ist möglich.</div>';
+    list.classList.add('open'); input.setAttribute('aria-expanded', 'true');
+  };
+  input.addEventListener('input', () => {
+    clearTimeout(timer); controller?.abort();
+    const q = input.value.trim();
+    if (q.length < 2) { results = []; close(); return; }
+    timer = setTimeout(async () => {
+      try { controller = new AbortController(); const r = await api('/locations?q=' + encodeURIComponent(q) + '&limit=12', { signal: controller.signal }); results = r.locations || []; active = -1; render(); }
+      catch (e) { if (e.name !== 'AbortError') close(); }
+    }, 150);
+  });
+  input.addEventListener('keydown', (e) => {
+    if (!list.classList.contains('open')) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); active = Math.min(active + 1, results.length - 1); render(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); active = Math.max(active - 1, 0); render(); }
+    else if (e.key === 'Enter' && active >= 0) { e.preventDefault(); choose(results[active]); }
+    else if (e.key === 'Escape') close();
+  });
+  list.addEventListener('mousedown', (e) => { const option = e.target.closest('[data-index]'); if (option) { e.preventDefault(); choose(results[Number(option.dataset.index)]); } });
+  input.addEventListener('blur', () => setTimeout(close, 120));
 }
 
 async function createRequest(draft) {

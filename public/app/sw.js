@@ -1,4 +1,4 @@
-const CACHE = 'trassa-app-v5-request-length';
+const CACHE = 'trassa-app-v6-location-search';
 const ASSETS = ['./', './index.html', './styles.css', './app.js', './manifest.webmanifest'];
 
 self.addEventListener('install', (e) => {
